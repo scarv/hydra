@@ -54,7 +54,9 @@ module soc #(
 	reg [N_CORES_BITS-1:0] mem_arb_counter = 0;
 	reg [N_CORES_BITS-1:0] mem_la_arb_counter = 1;
 
-	wire [3:0] mcompose;
+	wire [ 3:0] mcompose;
+	wire        mcompose_exec;
+	wire [31:0] mcompose_instr;
 	wire [N_CORES*4 - 1 : 0] dummy;
 	wire [N_CORES-2 : 0] mcompose_ready;
 
@@ -75,17 +77,19 @@ module soc #(
 		.CATCH_ILLINSN(1),
 		.HART_ID(0)
 	) primary_cpu (
-		.clk              (clk),
-		.resetn           (resetn),
-		.mem_la_read      (mem_la_read [0]),
-		.mem_la_write     (mem_la_write[0]),
-		.mem_ready        (mem_ready   [0]),
-		.mem_la_addr      (mem_la_addr [31: 0]),
-		.mem_la_wdata     (mem_la_wdata[31: 0]),
-		.mem_la_wstrb     (mem_la_wstrb[ 3: 0]),
-		.mem_rdata        (mem_rdata   [31: 0]),
-		.mcompose_out     (mcompose),
-		.mcompose_ready_in(mcompose_ready[0])
+		.clk               (clk),
+		.resetn            (resetn),
+		.mem_la_read       (mem_la_read [0]),
+		.mem_la_write      (mem_la_write[0]),
+		.mem_ready         (mem_ready   [0]),
+		.mem_la_addr       (mem_la_addr [31: 0]),
+		.mem_la_wdata      (mem_la_wdata[31: 0]),
+		.mem_la_wstrb      (mem_la_wstrb[ 3: 0]),
+		.mem_rdata         (mem_rdata   [31: 0]),
+		.mcompose_out      (mcompose),
+		.mcompose_ready_in (mcompose_ready[0]),
+		.mcompose_instr_out(mcompose_instr),
+		.mcompose_exec_out (mcompose_exec)
 	);
 	/* verilator lint_on PINMISSING */
 
@@ -118,7 +122,9 @@ module soc #(
 				.mem_rdata         (mem_rdata    [32*core_num + 31 -: 32]),
 				.mcompose_in       (mcompose),
 				.mcompose_ready_in ((core_num == N_CORES - 1) ? 1'b1 : mcompose_ready[core_num]),
-				.mcompose_ready_out(mcompose_ready[core_num - 1])
+				.mcompose_ready_out(mcompose_ready[core_num - 1]),
+				.mcompose_instr_in (mcompose_instr),
+		   		.mcompose_exec_in  (mcompose_exec)
 			);
 			/* verilator lint_on PINMISSING */
 

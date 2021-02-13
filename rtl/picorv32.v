@@ -131,6 +131,10 @@ module picorv32 #(
 	input      [ 3:0] mcompose_in,
 	output 			  mcompose_ready_out,
 	input             mcompose_ready_in,
+	output reg [31:0] mcompose_instr_out,
+	input      [31:0] mcompose_instr_in,
+	output 			  mcompose_exec_out,
+	input             mcompose_exec_in,
 
 `ifdef RISCV_FORMAL
 	output reg        rvfi_valid,
@@ -215,10 +219,12 @@ module picorv32 #(
 	if (ENABLE_MCOMPOSE && HART_ID == 0) begin
 		assign mcompose_out = mcompose[3:0];
 		assign mcompose_ready_out = 1'b0;
+		assign mcompose_exec_out = is_composed_ready && decoder_trigger;
 	end
 	if (ENABLE_MCOMPOSE && HART_ID > 0) begin
 		assign mcompose_out = 4'b0;
 		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (!is_composed);
+		assign mcompose_exec_out = 1'b0;
 	end
 	reg mcompose_ready;
 
@@ -1063,7 +1069,7 @@ module picorv32 #(
 			end
 		end
 
-		if (decoder_trigger && !decoder_pseudo_trigger) begin
+		if ((decoder_trigger || (is_composed_secondary && mcompose_exec_in)) && !decoder_pseudo_trigger) begin
 			pcpi_insn <= WITH_PCPI ? mem_rdata_q : 'bx;
 
 			instr_beq   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b000;
@@ -1480,6 +1486,11 @@ module picorv32 #(
 		decoder_pseudo_trigger_q <= decoder_pseudo_trigger;
 		do_waitirq <= 0;
 
+		if (ENABLE_MCOMPOSE && HART_ID == 0)
+			mcompose_instr_out <= (mem_do_rinst && mem_done) ? mem_rdata_q : 32'b0;
+		else
+			mcompose_instr_out <= 32'b0;
+		
 		trace_valid <= 0;
 
 		if (!ENABLE_TRACE)
@@ -1524,6 +1535,16 @@ module picorv32 #(
 			end
 
 			cpu_state_composed: begin
+				if (mcompose_exec_in) begin
+					if (ENABLE_COUNTERS) begin
+						count_instr <= count_instr + 1;
+						if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
+					end
+					mem_do_rinst <= 0;
+					mem_do_prefetch <= 0;
+					cpu_state <= cpu_state_ld_rs1;
+				end
+
 				if (!is_composed) begin
 					mcompose_ready <= 0;
 					cpu_state <= cpu_state_fetch;
@@ -1531,100 +1552,93 @@ module picorv32 #(
 			end
 
 			cpu_state_fetch: begin
-				(* parallel_case *)
-				case (1'b1)
-					is_composed_secondary: begin
-						mcompose_ready <= 1;
-						cpu_state <= cpu_state_composed;
-					end
-					is_composed_ready || !is_composed: begin
-						mem_do_rinst <= !decoder_trigger && !do_waitirq;
-						mem_wordsize <= 0;
+				if (is_composed_ready || !is_composed || HART_ID > 0) begin
+					mem_do_rinst <= !decoder_trigger && !do_waitirq;
+					mem_wordsize <= 0;
 
-						current_pc = reg_next_pc;
+					current_pc = reg_next_pc;
 
-						(* parallel_case *)
-						case (1'b1)
-							latched_branch: begin
-								current_pc = latched_store ? (latched_stalu ? alu_out_q : reg_out) & ~1 : reg_next_pc;
-								`debug($display("ST_RD:  %2d 0x%08x, BRANCH 0x%08x", latched_rd, reg_pc + (latched_compr ? 2 : 4), current_pc);)
-							end
-							latched_store && !latched_branch: begin
-								`debug($display("ST_RD:  %2d 0x%08x", latched_rd, latched_stalu ? alu_out_q : reg_out);)
-							end
-							ENABLE_IRQ && irq_state[0]: begin
-								current_pc = PROGADDR_IRQ;
-								irq_active <= 1;
-								mem_do_rinst <= 1;
-							end
-							ENABLE_IRQ && irq_state[1]: begin
-								eoi <= irq_pending & ~irq_mask;
-								next_irq_pending = next_irq_pending & irq_mask;
-							end
-						endcase
-
-						if (ENABLE_TRACE && latched_trace) begin
-							latched_trace <= 0;
-							trace_valid <= 1;
-							if (latched_branch)
-								trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_BRANCH | (current_pc & 32'hfffffffe);
-							else
-								trace_data <= (irq_active ? TRACE_IRQ : 0) | (latched_stalu ? alu_out_q : reg_out);
+					(* parallel_case *)
+					case (1'b1)
+						latched_branch: begin
+							current_pc = latched_store ? (latched_stalu ? alu_out_q : reg_out) & ~1 : reg_next_pc;
+							`debug($display("ST_RD:  %2d 0x%08x, BRANCH 0x%08x", latched_rd, reg_pc + (latched_compr ? 2 : 4), current_pc);)
 						end
+						latched_store && !latched_branch: begin
+							`debug($display("ST_RD:  %2d 0x%08x", latched_rd, latched_stalu ? alu_out_q : reg_out);)
+						end
+						ENABLE_IRQ && irq_state[0]: begin
+							current_pc = PROGADDR_IRQ;
+							irq_active <= 1;
+							mem_do_rinst <= 1;
+						end
+						ENABLE_IRQ && irq_state[1]: begin
+							eoi <= irq_pending & ~irq_mask;
+							next_irq_pending = next_irq_pending & irq_mask;
+						end
+					endcase
 
-						reg_pc <= current_pc;
-						reg_next_pc <= current_pc;
+					if (ENABLE_TRACE && latched_trace) begin
+						latched_trace <= 0;
+						trace_valid <= 1;
+						if (latched_branch)
+							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_BRANCH | (current_pc & 32'hfffffffe);
+						else
+							trace_data <= (irq_active ? TRACE_IRQ : 0) | (latched_stalu ? alu_out_q : reg_out);
+					end
 
-						latched_store <= 0;
-						latched_stalu <= 0;
-						latched_branch <= 0;
-						latched_is_lu <= 0;
-						latched_is_lh <= 0;
-						latched_is_lb <= 0;
-						latched_rd <= decoded_rd;
-						latched_compr <= compressed_instr;
+					reg_pc <= current_pc;
+					reg_next_pc <= current_pc;
 
-						if (ENABLE_IRQ && ((decoder_trigger && !irq_active && !irq_delay && |(irq_pending & ~irq_mask)) || irq_state)) begin
-							irq_state <=
-								irq_state == 2'b00 ? 2'b01 :
-								irq_state == 2'b01 ? 2'b10 : 2'b00;
-							latched_compr <= latched_compr;
-							if (ENABLE_IRQ_QREGS)
-								latched_rd <= irqregs_offset | irq_state[0];
-							else
-								latched_rd <= irq_state[0] ? 4 : 3;
-						end else
-						if (ENABLE_IRQ && (decoder_trigger || do_waitirq) && instr_waitirq) begin
-							if (irq_pending) begin
-								latched_store <= 1;
-								reg_out <= irq_pending;
-								reg_next_pc <= current_pc + (compressed_instr ? 2 : 4);
-								mem_do_rinst <= 1;
-							end else
-								do_waitirq <= 1;
-						end else
-						if (decoder_trigger) begin
-							`debug($display("-- %-0t", $time);)
-							irq_delay <= irq_active;
+					latched_store <= 0;
+					latched_stalu <= 0;
+					latched_branch <= 0;
+					latched_is_lu <= 0;
+					latched_is_lh <= 0;
+					latched_is_lb <= 0;
+					latched_rd <= decoded_rd;
+					latched_compr <= compressed_instr;
+
+					if (ENABLE_IRQ && ((decoder_trigger && !irq_active && !irq_delay && |(irq_pending & ~irq_mask)) || irq_state)) begin
+						irq_state <=
+							irq_state == 2'b00 ? 2'b01 :
+							irq_state == 2'b01 ? 2'b10 : 2'b00;
+						latched_compr <= latched_compr;
+						if (ENABLE_IRQ_QREGS)
+							latched_rd <= irqregs_offset | irq_state[0];
+						else
+							latched_rd <= irq_state[0] ? 4 : 3;
+					end else
+					if (ENABLE_IRQ && (decoder_trigger || do_waitirq) && instr_waitirq) begin
+						if (irq_pending) begin
+							latched_store <= 1;
+							reg_out <= irq_pending;
 							reg_next_pc <= current_pc + (compressed_instr ? 2 : 4);
-							if (ENABLE_TRACE)
-								latched_trace <= 1;
-							if (ENABLE_COUNTERS) begin
-								count_instr <= count_instr + 1;
-								if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
-							end
-							if (instr_jal) begin
-								mem_do_rinst <= 1;
-								reg_next_pc <= current_pc + decoded_imm_j;
-								latched_branch <= 1;
-							end else begin
-								mem_do_rinst <= 0;
-								mem_do_prefetch <= !instr_jalr && !instr_retirq;
-								cpu_state <= cpu_state_ld_rs1;
-							end
+							mem_do_rinst <= 1;
+						end else
+							do_waitirq <= 1;
+					end else
+					if (decoder_trigger) begin
+						`debug($display("-- %-0t", $time);)
+						irq_delay <= irq_active;
+						reg_next_pc <= current_pc + (compressed_instr ? 2 : 4);
+						if (ENABLE_TRACE)
+							latched_trace <= 1;
+						if (ENABLE_COUNTERS) begin
+							count_instr <= count_instr + 1;
+							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
+						end
+						if (instr_jal) begin
+							mem_do_rinst <= 1;
+							reg_next_pc <= current_pc + decoded_imm_j;
+							latched_branch <= 1;
+						end else begin
+							mem_do_rinst <= 0;
+							mem_do_prefetch <= !instr_jalr && !instr_retirq;
+							cpu_state <= cpu_state_ld_rs1;
 						end
 					end
-				endcase
+				end
 			end
 
 			cpu_state_ld_rs1: begin
@@ -1701,6 +1715,10 @@ module picorv32 #(
 						mcompose <= cpuregs_rs1;
 						latched_store <= 1;
 						cpu_state <= cpu_state_fetch;
+					end
+					(ENABLE_MCOMPOSE && HART_ID > 0) && instr_wrmcompose: begin
+						cpu_state <= cpu_state_composed;
+						mcompose_ready <= 1;
 					end
 					is_lui_auipc_jal: begin
 						reg_op1 <= instr_lui ? 0 : reg_pc;
