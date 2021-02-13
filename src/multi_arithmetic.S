@@ -4,8 +4,16 @@
 .global multi_add
 .global multi_sub
 .global multi_mult
+.global multi_xor
+
+.global multi_add_comp
+.global multi_xor_comp
+
+#define mhartid 0xf14
+#define mcompose 0x7c0
 
 #define a_value        t0
+#define hart_id        t0
 #define b_value        t1
 #define res_value      t2
 #define a_addr         a0
@@ -17,8 +25,10 @@
 #define res_addr_temp  t6
 #define temp           a4
 #define carry          a5
-#define temp_carry     a4
+#define temp_carry     a7
+#define bytes_per_word a7
 #define n_words        a3
+#define n_cores        a4
 #define n_bytes        a6
 #define carry_out      a0
 
@@ -110,3 +120,76 @@ multi_sub_end:
 #     j    b_loop
 # b_loop_end:
 #     ret
+
+// extern int multi_add_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
+multi_add_comp:
+    li   carry, 0
+    csrr t0, mhartid
+    add a_addr, a_addr, t0
+    add b_addr, b_addr, t0
+    add res_addr, res_addr, t0
+    slli n_bytes, n_words, 2
+    slli n_cores, n_cores, 2
+    add  a_addr_end, n_bytes, a_addr
+multi_add_comp_loop:
+    beq  a_addr, a_addr_end, multi_add_comp_end
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
+    // compose
+    add  res_value, a_value, carry
+    sltu carry, res_value, a_value
+    add  res_value, res_value, b_value
+    sltu temp_carry, res_value, b_value
+    or   carry, carry, temp_carry
+    // uncompose
+    sw   res_value, 0(res_addr)
+    add a_addr, a_addr, n_cores
+    add b_addr, b_addr, n_cores
+    add res_addr, res_addr, n_cores
+    j   multi_add_comp_loop
+multi_add_comp_end:
+    mv   carry_out, carry
+    ret
+
+// extern void multi_xor(const void *a, const void *b, void *res, int n_words);
+multi_xor:
+    slli n_bytes, n_words, 2
+    add  a_addr_end, n_bytes, a_addr
+multi_xor_loop:
+    beq  a_addr, a_addr_end, multi_xor_end
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
+    xor  res_value, a_value, b_value
+    sw   res_value, 0(res_addr)
+    addi a_addr, a_addr, 4
+    addi b_addr, b_addr, 4
+    addi res_addr, res_addr, 4
+    j    multi_xor_loop
+multi_xor_end:
+    ret
+
+// extern void multi_xor_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
+multi_xor_comp:
+    csrr hart_id, mhartid // Read HARTID
+    add a_addr, a_addr, hart_id
+    add b_addr, b_addr, hart_id
+    add res_addr, res_addr, hart_id
+    slli n_bytes, n_words, 2
+    slli bytes_per_word, n_cores, 2
+    add  a_addr_end, n_bytes, a_addr
+multi_xor_comp_loop:
+    beq  a_addr, a_addr_end, multi_xor_comp_end
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
+    // compose
+    csrw mcompose, n_cores
+    xor  res_value, a_value, b_value
+    csrw mcompose, zero
+    // uncompose
+    sw   res_value, 0(res_addr)
+    add a_addr, a_addr, bytes_per_word
+    add b_addr, b_addr, bytes_per_word
+    add res_addr, res_addr, bytes_per_word
+    j    multi_xor_comp_loop
+multi_xor_comp_end:
+    ret

@@ -55,9 +55,10 @@ int __attribute__((optimize("O0"))) main()
         unsigned int b[NUM_WORDS] = {0xdd00d420, 0x9beeff00, 0, 0};
         unsigned int res[NUM_WORDS * 2] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-        unsigned int a_plus_b[NUM_WORDS] = {0xbbae930f, 0x4732022c, 1, 0};
-        unsigned int a_minus_b[NUM_WORDS] = {0x01aceacf, 0xf54042b, 0, 0};
-        unsigned int a_times_b[NUM_WORDS * 2] = {0xad5c9e0, 0xe9ec8b8, 0xd69e5297, 0x685175d0, 0, 0, 0, 0};
+        const unsigned int a_plus_b[NUM_WORDS] = {0xbbae930f, 0x4732022c, 1, 0};
+        const unsigned int a_minus_b[NUM_WORDS] = {0x01aceacf, 0xf54042b, 0, 0};
+        const unsigned int a_xor_b[NUM_WORDS] = {0x3ad6acf, 0x30adfc2b, 0, 0};
+        const unsigned int a_times_b[NUM_WORDS * 2] = {0xad5c9e0, 0xe9ec8b8, 0xd69e5297, 0x685175d0, 0, 0, 0, 0};
 
         print_int(NUM_WORDS << 5);
         print_string("-bit addition: ");
@@ -73,6 +74,14 @@ int __attribute__((optimize("O0"))) main()
 
         if (!check_result(res, a_minus_b, NUM_WORDS << 2)) {
             print_string("multi_sub failed!\n");
+        }
+
+        print_int(NUM_WORDS << 5);
+        print_string("-bit XOR: ");
+        multi_xor_comp_stats(a, b, res, 4, 4);
+
+        if (!check_result(res, a_xor_b, NUM_WORDS << 2)) {
+            print_string("multi_xor failed!\n");
         }
 
         // print_int(NUM_WORDS << 5);

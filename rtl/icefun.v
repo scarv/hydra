@@ -39,10 +39,10 @@ module top (
 		.lcol3,
 		.lcol4,
 
-		.leds1   ({30'b0, soc_leds[0]}),
-		.leds2   ({29'b0, dbg_signals[0], soc_leds[1]}),
-		.leds3   ({29'b0, dbg_signals[1], soc_leds[2]}),
-		.leds4   ({29'b0, dbg_signals[2], soc_leds[3]}),
+		.leds1   ({7'b0, soc_leds[0]}),
+		.leds2   ({6'b0, dbg_signals[0], soc_leds[1]}),
+		.leds3   ({6'b0, dbg_signals[1], soc_leds[2]}),
+		.leds4   ({6'b0, dbg_signals[2], soc_leds[3]}),
 		.leds_pwm(brightness)
 	);
 
