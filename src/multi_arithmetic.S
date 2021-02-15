@@ -171,12 +171,14 @@ multi_xor_end:
 // extern void multi_xor_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
 multi_xor_comp:
     csrr hart_id, mhartid // Read HARTID
+    slli hart_id, hart_id, 2
     add a_addr, a_addr, hart_id
     add b_addr, b_addr, hart_id
     add res_addr, res_addr, hart_id
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
+    bne  hart_id, zero, multi_xor_comp_loop_sec
 multi_xor_comp_loop:
     beq  a_addr, a_addr_end, multi_xor_comp_end
     lw   a_value, 0(a_addr)
@@ -191,5 +193,17 @@ multi_xor_comp_loop:
     add b_addr, b_addr, bytes_per_word
     add res_addr, res_addr, bytes_per_word
     j    multi_xor_comp_loop
+multi_xor_comp_loop_sec:
+    beq  a_addr, a_addr_end, multi_xor_comp_end
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
+    // compose
+    csrw mcompose, n_cores
+    // uncompose
+    sw   res_value, 0(res_addr)
+    add a_addr, a_addr, bytes_per_word
+    add b_addr, b_addr, bytes_per_word
+    add res_addr, res_addr, bytes_per_word
+    j    multi_xor_comp_loop_sec
 multi_xor_comp_end:
     ret

@@ -131,7 +131,7 @@ module picorv32 #(
 	input      [ 3:0] mcompose_in,
 	output 			  mcompose_ready_out,
 	input             mcompose_ready_in,
-	output reg [31:0] mcompose_instr_out,
+	output     [31:0] mcompose_instr_out,
 	input      [31:0] mcompose_instr_in,
 	output 			  mcompose_exec_out,
 	input             mcompose_exec_in,
@@ -188,6 +188,9 @@ module picorv32 #(
 	localparam [35:0] TRACE_ADDR   = {4'b 0010, 32'b 0};
 	localparam [35:0] TRACE_IRQ    = {4'b 1000, 32'b 0};
 
+	localparam PRIMARY_CORE = ENABLE_MCOMPOSE && HART_ID == 0;
+	localparam SECONDARY_CORE = ENABLE_MCOMPOSE && HART_ID > 0;
+
 	reg [63:0] count_cycle, count_instr;
 	reg [31:0] reg_pc, reg_next_pc, reg_op1, reg_op2, reg_out;
 	reg [4:0] reg_sh;
@@ -216,22 +219,28 @@ module picorv32 #(
 	reg [31:0] timer;
 
 	reg [31:0] mcompose;
-	if (ENABLE_MCOMPOSE && HART_ID == 0) begin
+	reg        mcompose_ready;
+	reg        mcompose_decoder_trigger;
+	if (PRIMARY_CORE) begin
 		assign mcompose_out = mcompose[3:0];
 		assign mcompose_ready_out = 1'b0;
-		assign mcompose_exec_out = is_composed_ready && decoder_trigger;
+		assign mcompose_exec_out = is_composed_ready && mem_do_rinst && mem_done;
+		//assign mcompose_exec_out = 1'b0;
+		assign mcompose_instr_out = (decoder_trigger) ? mem_rdata_q : mem_rdata_latched;
 	end
-	if (ENABLE_MCOMPOSE && HART_ID > 0) begin
+	if (SECONDARY_CORE) begin
 		assign mcompose_out = 4'b0;
 		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (!is_composed);
 		assign mcompose_exec_out = 1'b0;
+		assign mcompose_instr_out = 32'b0;
 	end
-	reg mcompose_ready;
 
-	wire is_composed_primary = ENABLE_MCOMPOSE && (HART_ID == 0) && (mcompose > 0);
-	wire is_composed_secondary = ENABLE_MCOMPOSE && (HART_ID > 0) && (mcompose_in > HART_ID);
-	wire is_composed = is_composed_primary || is_composed_secondary;
-	wire is_composed_ready = is_composed_primary && mcompose_ready_in;
+	wire        is_composed_primary = PRIMARY_CORE && (mcompose > 0);
+	wire        is_composed_secondary = SECONDARY_CORE && (mcompose_in > HART_ID);
+	wire        is_composed = is_composed_primary || is_composed_secondary;
+	wire        is_composed_ready = is_composed_primary && mcompose_ready_in;
+	wire [31:0] instr_source = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
+	wire [31:0] instr_source_q = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_q;
 
 `ifndef PICORV32_REGS
 	reg [31:0] cpuregs [0:regfile_size-1];
@@ -682,7 +691,7 @@ module picorv32 #(
 	reg instr_lb, instr_lh, instr_lw, instr_lbu, instr_lhu, instr_sb, instr_sh, instr_sw;
 	reg instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai;
 	reg instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and;
-	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_ecall_ebreak;
+	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_ecall_ebreak;
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
 	wire instr_trap;
 
@@ -714,7 +723,7 @@ module picorv32 #(
 			instr_lb, instr_lh, instr_lw, instr_lbu, instr_lhu, instr_sb, instr_sh, instr_sw,
 			instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai,
 			instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and,
-			instr_rdcycle, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_rdcycleh, instr_rdinstr, instr_rdinstrh,
+			instr_rdcycle, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_rdcycleh, instr_rdinstr, instr_rdinstrh,
 			instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer};
 
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh_rdmhartid;
@@ -780,6 +789,7 @@ module picorv32 #(
 		if (instr_rdmhartid)  new_ascii_instr = "rdmhartid";
 		if (instr_rdmcompose) new_ascii_instr = "rdmcompose";
 		if (instr_wrmcompose) new_ascii_instr = "wrmcompose";
+		if (instr_wrmcomposei) new_ascii_instr = "wrmcomposei";
 		if (instr_rdcycleh) new_ascii_instr = "rdcycleh";
 		if (instr_rdinstr)  new_ascii_instr = "rdinstr";
 		if (instr_rdinstrh) new_ascii_instr = "rdinstrh";
@@ -898,34 +908,34 @@ module picorv32 #(
 		is_lbu_lhu_lw <= |{instr_lbu, instr_lhu, instr_lw};
 		is_compare <= |{is_beq_bne_blt_bge_bltu_bgeu, instr_slti, instr_slt, instr_sltiu, instr_sltu};
 
-		if (mem_do_rinst && mem_done) begin
-			instr_lui     <= mem_rdata_latched[6:0] == 7'b0110111;
-			instr_auipc   <= mem_rdata_latched[6:0] == 7'b0010111;
-			instr_jal     <= mem_rdata_latched[6:0] == 7'b1101111;
-			instr_jalr    <= mem_rdata_latched[6:0] == 7'b1100111 && mem_rdata_latched[14:12] == 3'b000;
-			instr_retirq  <= mem_rdata_latched[6:0] == 7'b0001011 && mem_rdata_latched[31:25] == 7'b0000010 && ENABLE_IRQ;
-			instr_waitirq <= mem_rdata_latched[6:0] == 7'b0001011 && mem_rdata_latched[31:25] == 7'b0000100 && ENABLE_IRQ;
+		if ((mem_do_rinst && mem_done) || (SECONDARY_CORE && mcompose_exec_in && mcompose_ready)) begin
+			instr_lui     <= instr_source[6:0] == 7'b0110111;
+			instr_auipc   <= instr_source[6:0] == 7'b0010111;
+			instr_jal     <= instr_source[6:0] == 7'b1101111;
+			instr_jalr    <= instr_source[6:0] == 7'b1100111 && instr_source[14:12] == 3'b000;
+			instr_retirq  <= instr_source[6:0] == 7'b0001011 && instr_source[31:25] == 7'b0000010 && ENABLE_IRQ;
+			instr_waitirq <= instr_source[6:0] == 7'b0001011 && instr_source[31:25] == 7'b0000100 && ENABLE_IRQ;
 
-			is_beq_bne_blt_bge_bltu_bgeu <= mem_rdata_latched[6:0] == 7'b1100011;
-			is_lb_lh_lw_lbu_lhu          <= mem_rdata_latched[6:0] == 7'b0000011;
-			is_sb_sh_sw                  <= mem_rdata_latched[6:0] == 7'b0100011;
-			is_alu_reg_imm               <= mem_rdata_latched[6:0] == 7'b0010011;
-			is_alu_reg_reg               <= mem_rdata_latched[6:0] == 7'b0110011;
+			is_beq_bne_blt_bge_bltu_bgeu <= instr_source[6:0] == 7'b1100011;
+			is_lb_lh_lw_lbu_lhu          <= instr_source[6:0] == 7'b0000011;
+			is_sb_sh_sw                  <= instr_source[6:0] == 7'b0100011;
+			is_alu_reg_imm               <= instr_source[6:0] == 7'b0010011;
+			is_alu_reg_reg               <= instr_source[6:0] == 7'b0110011;
 
-			{ decoded_imm_j[31:20], decoded_imm_j[10:1], decoded_imm_j[11], decoded_imm_j[19:12], decoded_imm_j[0] } <= $signed({mem_rdata_latched[31:12], 1'b0});
+			{ decoded_imm_j[31:20], decoded_imm_j[10:1], decoded_imm_j[11], decoded_imm_j[19:12], decoded_imm_j[0] } <= $signed({instr_source[31:12], 1'b0});
 
-			decoded_rd <= mem_rdata_latched[11:7];
-			decoded_rs1 <= mem_rdata_latched[19:15];
-			decoded_rs2 <= mem_rdata_latched[24:20];
+			decoded_rd <= instr_source[11:7];
+			decoded_rs1 <= instr_source[19:15];
+			decoded_rs2 <= instr_source[24:20];
 
-			if (mem_rdata_latched[6:0] == 7'b0001011 && mem_rdata_latched[31:25] == 7'b0000000 && ENABLE_IRQ && ENABLE_IRQ_QREGS)
+			if (instr_source[6:0] == 7'b0001011 && instr_source[31:25] == 7'b0000000 && ENABLE_IRQ && ENABLE_IRQ_QREGS)
 				decoded_rs1[regindex_bits-1] <= 1; // instr_getq
 
-			if (mem_rdata_latched[6:0] == 7'b0001011 && mem_rdata_latched[31:25] == 7'b0000010 && ENABLE_IRQ)
+			if (instr_source[6:0] == 7'b0001011 && instr_source[31:25] == 7'b0000010 && ENABLE_IRQ)
 				decoded_rs1 <= ENABLE_IRQ_QREGS ? irqregs_offset : 3; // instr_retirq
 
 			compressed_instr <= 0;
-			if (COMPRESSED_ISA && mem_rdata_latched[1:0] != 2'b11) begin
+			if (COMPRESSED_ISA && mem_rdata_latched[1:0] != 2'b11 && !mcompose_ready) begin
 				compressed_instr <= 1;
 				decoded_rd <= 0;
 				decoded_rs1 <= 0;
@@ -1069,86 +1079,87 @@ module picorv32 #(
 			end
 		end
 
-		if ((decoder_trigger || (is_composed_secondary && mcompose_exec_in)) && !decoder_pseudo_trigger) begin
-			pcpi_insn <= WITH_PCPI ? mem_rdata_q : 'bx;
+		if ((decoder_trigger && !decoder_pseudo_trigger) || mcompose_decoder_trigger) begin
+			pcpi_insn <= WITH_PCPI ? instr_source_q : 'bx;
 
-			instr_beq   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b000;
-			instr_bne   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b001;
-			instr_blt   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b100;
-			instr_bge   <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b101;
-			instr_bltu  <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b110;
-			instr_bgeu  <= is_beq_bne_blt_bge_bltu_bgeu && mem_rdata_q[14:12] == 3'b111;
+			instr_beq   <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b000;
+			instr_bne   <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b001;
+			instr_blt   <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b100;
+			instr_bge   <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b101;
+			instr_bltu  <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b110;
+			instr_bgeu  <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b111;
 
-			instr_lb    <= is_lb_lh_lw_lbu_lhu && mem_rdata_q[14:12] == 3'b000;
-			instr_lh    <= is_lb_lh_lw_lbu_lhu && mem_rdata_q[14:12] == 3'b001;
-			instr_lw    <= is_lb_lh_lw_lbu_lhu && mem_rdata_q[14:12] == 3'b010;
-			instr_lbu   <= is_lb_lh_lw_lbu_lhu && mem_rdata_q[14:12] == 3'b100;
-			instr_lhu   <= is_lb_lh_lw_lbu_lhu && mem_rdata_q[14:12] == 3'b101;
+			instr_lb    <= is_lb_lh_lw_lbu_lhu && instr_source_q[14:12] == 3'b000;
+			instr_lh    <= is_lb_lh_lw_lbu_lhu && instr_source_q[14:12] == 3'b001;
+			instr_lw    <= is_lb_lh_lw_lbu_lhu && instr_source_q[14:12] == 3'b010;
+			instr_lbu   <= is_lb_lh_lw_lbu_lhu && instr_source_q[14:12] == 3'b100;
+			instr_lhu   <= is_lb_lh_lw_lbu_lhu && instr_source_q[14:12] == 3'b101;
 
-			instr_sb    <= is_sb_sh_sw && mem_rdata_q[14:12] == 3'b000;
-			instr_sh    <= is_sb_sh_sw && mem_rdata_q[14:12] == 3'b001;
-			instr_sw    <= is_sb_sh_sw && mem_rdata_q[14:12] == 3'b010;
+			instr_sb    <= is_sb_sh_sw && instr_source_q[14:12] == 3'b000;
+			instr_sh    <= is_sb_sh_sw && instr_source_q[14:12] == 3'b001;
+			instr_sw    <= is_sb_sh_sw && instr_source_q[14:12] == 3'b010;
 
-			instr_addi  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b000;
-			instr_slti  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b010;
-			instr_sltiu <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b011;
-			instr_xori  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b100;
-			instr_ori   <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b110;
-			instr_andi  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b111;
+			instr_addi  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b000;
+			instr_slti  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b010;
+			instr_sltiu <= is_alu_reg_imm && instr_source_q[14:12] == 3'b011;
+			instr_xori  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b100;
+			instr_ori   <= is_alu_reg_imm && instr_source_q[14:12] == 3'b110;
+			instr_andi  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b111;
 
-			instr_slli  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_srli  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_srai  <= is_alu_reg_imm && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100000;
+			instr_slli  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b001 && instr_source_q[31:25] == 7'b0000000;
+			instr_srli  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0000000;
+			instr_srai  <= is_alu_reg_imm && instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0100000;
 
-			instr_add   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b000 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_sub   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b000 && mem_rdata_q[31:25] == 7'b0100000;
-			instr_sll   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_slt   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b010 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_sltu  <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b011 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_xor   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b100 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_srl   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_sra   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100000;
-			instr_or    <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b110 && mem_rdata_q[31:25] == 7'b0000000;
-			instr_and   <= is_alu_reg_reg && mem_rdata_q[14:12] == 3'b111 && mem_rdata_q[31:25] == 7'b0000000;
+			instr_add   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b000 && instr_source_q[31:25] == 7'b0000000;
+			instr_sub   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b000 && instr_source_q[31:25] == 7'b0100000;
+			instr_sll   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b001 && instr_source_q[31:25] == 7'b0000000;
+			instr_slt   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b010 && instr_source_q[31:25] == 7'b0000000;
+			instr_sltu  <= is_alu_reg_reg && instr_source_q[14:12] == 3'b011 && instr_source_q[31:25] == 7'b0000000;
+			instr_xor   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b100 && instr_source_q[31:25] == 7'b0000000;
+			instr_srl   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0000000;
+			instr_sra   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0100000;
+			instr_or    <= is_alu_reg_reg && instr_source_q[14:12] == 3'b110 && instr_source_q[31:25] == 7'b0000000;
+			instr_and   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b111 && instr_source_q[31:25] == 7'b0000000;
 
-			instr_rdcycle  <= ((mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11000000000000000010) ||
-			                   (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11000000000100000010)) && ENABLE_COUNTERS;
-			instr_rdcycleh <= ((mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11001000000000000010) ||
-			                   (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11001000000100000010)) && ENABLE_COUNTERS && ENABLE_COUNTERS64;
-			instr_rdinstr  <=  (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11000000001000000010) && ENABLE_COUNTERS;
-			instr_rdinstrh <=  (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11001000001000000010) && ENABLE_COUNTERS && ENABLE_COUNTERS64;
+			instr_rdcycle  <= ((instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11000000000000000010) ||
+			                   (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11000000000100000010)) && ENABLE_COUNTERS;
+			instr_rdcycleh <= ((instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11001000000000000010) ||
+			                   (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11001000000100000010)) && ENABLE_COUNTERS && ENABLE_COUNTERS64;
+			instr_rdinstr  <=  (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11000000001000000010) && ENABLE_COUNTERS;
+			instr_rdinstrh <=  (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11001000001000000010) && ENABLE_COUNTERS && ENABLE_COUNTERS64;
 
-			instr_rdmhartid  <= (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b11110001010000000010) && ENABLE_MHARTID;
-			instr_rdmcompose  <= (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:12] == 'b01111100000000000010) && ENABLE_MCOMPOSE && (HART_ID == 0);
-			instr_wrmcompose  <= (mem_rdata_q[6:0] == 7'b1110011 && mem_rdata_q[31:20] == 'b011111000000 && mem_rdata_q[14:12] == 3'b001) && ENABLE_MCOMPOSE && (HART_ID == 0);
+			instr_rdmhartid  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11110001010000000010) && ENABLE_MHARTID;
+			instr_rdmcompose  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b01111100000000000010) && ENABLE_MCOMPOSE;
+			instr_wrmcompose  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:20] == 'b011111000000 && instr_source_q[14:12] == 3'b001) && ENABLE_MCOMPOSE;
+			instr_wrmcomposei  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:20] == 'b011111000000 && instr_source_q[14:12] == 3'b101) && ENABLE_MCOMPOSE;
 
-			instr_ecall_ebreak <= ((mem_rdata_q[6:0] == 7'b1110011 && !mem_rdata_q[31:21] && !mem_rdata_q[19:7]) ||
-					(COMPRESSED_ISA && mem_rdata_q[15:0] == 16'h9002));
+			instr_ecall_ebreak <= ((instr_source_q[6:0] == 7'b1110011 && !instr_source_q[31:21] && !instr_source_q[19:7]) ||
+					(COMPRESSED_ISA && instr_source_q[15:0] == 16'h9002));
 
-			instr_getq    <= mem_rdata_q[6:0] == 7'b0001011 && mem_rdata_q[31:25] == 7'b0000000 && ENABLE_IRQ && ENABLE_IRQ_QREGS;
-			instr_setq    <= mem_rdata_q[6:0] == 7'b0001011 && mem_rdata_q[31:25] == 7'b0000001 && ENABLE_IRQ && ENABLE_IRQ_QREGS;
-			instr_maskirq <= mem_rdata_q[6:0] == 7'b0001011 && mem_rdata_q[31:25] == 7'b0000011 && ENABLE_IRQ;
-			instr_timer   <= mem_rdata_q[6:0] == 7'b0001011 && mem_rdata_q[31:25] == 7'b0000101 && ENABLE_IRQ && ENABLE_IRQ_TIMER;
+			instr_getq    <= instr_source_q[6:0] == 7'b0001011 && instr_source_q[31:25] == 7'b0000000 && ENABLE_IRQ && ENABLE_IRQ_QREGS;
+			instr_setq    <= instr_source_q[6:0] == 7'b0001011 && instr_source_q[31:25] == 7'b0000001 && ENABLE_IRQ && ENABLE_IRQ_QREGS;
+			instr_maskirq <= instr_source_q[6:0] == 7'b0001011 && instr_source_q[31:25] == 7'b0000011 && ENABLE_IRQ;
+			instr_timer   <= instr_source_q[6:0] == 7'b0001011 && instr_source_q[31:25] == 7'b0000101 && ENABLE_IRQ && ENABLE_IRQ_TIMER;
 
 			is_slli_srli_srai <= is_alu_reg_imm && |{
-				mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000000,
-				mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0000000,
-				mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100000
+				instr_source_q[14:12] == 3'b001 && instr_source_q[31:25] == 7'b0000000,
+				instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0000000,
+				instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0100000
 			};
 
 			is_jalr_addi_slti_sltiu_xori_ori_andi <= instr_jalr || is_alu_reg_imm && |{
-				mem_rdata_q[14:12] == 3'b000,
-				mem_rdata_q[14:12] == 3'b010,
-				mem_rdata_q[14:12] == 3'b011,
-				mem_rdata_q[14:12] == 3'b100,
-				mem_rdata_q[14:12] == 3'b110,
-				mem_rdata_q[14:12] == 3'b111
+				instr_source_q[14:12] == 3'b000,
+				instr_source_q[14:12] == 3'b010,
+				instr_source_q[14:12] == 3'b011,
+				instr_source_q[14:12] == 3'b100,
+				instr_source_q[14:12] == 3'b110,
+				instr_source_q[14:12] == 3'b111
 			};
 
 			is_sll_srl_sra <= is_alu_reg_reg && |{
-				mem_rdata_q[14:12] == 3'b001 && mem_rdata_q[31:25] == 7'b0000000,
-				mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0000000,
-				mem_rdata_q[14:12] == 3'b101 && mem_rdata_q[31:25] == 7'b0100000
+				instr_source_q[14:12] == 3'b001 && instr_source_q[31:25] == 7'b0000000,
+				instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0000000,
+				instr_source_q[14:12] == 3'b101 && instr_source_q[31:25] == 7'b0100000
 			};
 
 			is_lui_auipc_jal_jalr_addi_add_sub <= 0;
@@ -1159,13 +1170,13 @@ module picorv32 #(
 				instr_jal:
 					decoded_imm <= decoded_imm_j;
 				|{instr_lui, instr_auipc}:
-					decoded_imm <= mem_rdata_q[31:12] << 12;
+					decoded_imm <= instr_source_q[31:12] << 12;
 				|{instr_jalr, is_lb_lh_lw_lbu_lhu, is_alu_reg_imm}:
-					decoded_imm <= $signed(mem_rdata_q[31:20]);
+					decoded_imm <= $signed(instr_source_q[31:20]);
 				is_beq_bne_blt_bge_bltu_bgeu:
-					decoded_imm <= $signed({mem_rdata_q[31], mem_rdata_q[7], mem_rdata_q[30:25], mem_rdata_q[11:8], 1'b0});
+					decoded_imm <= $signed({instr_source_q[31], instr_source_q[7], instr_source_q[30:25], instr_source_q[11:8], 1'b0});
 				is_sb_sh_sw:
-					decoded_imm <= $signed({mem_rdata_q[31:25], mem_rdata_q[11:7]});
+					decoded_imm <= $signed({instr_source_q[31:25], instr_source_q[11:7]});
 				default:
 					decoded_imm <= 1'bx;
 			endcase
@@ -1214,6 +1225,8 @@ module picorv32 #(
 	localparam cpu_state_stmem     = 9'b000000100;
 	localparam cpu_state_ldmem     = 9'b000000010;
 	localparam cpu_state_composed  = 9'b000000001;
+
+	wire [8:0] cpu_state_fetch_or_composed = (SECONDARY_CORE && mcompose_ready) ? cpu_state_composed : cpu_state_fetch;
 
 	reg [8:0] cpu_state;
 	reg [1:0] irq_state;
@@ -1347,7 +1360,7 @@ module picorv32 #(
 		cpuregs_write = 0;
 		cpuregs_wrdata = 'bx;
 
-		if (cpu_state == cpu_state_fetch) begin
+		if (cpu_state == cpu_state_fetch || cpu_state == cpu_state_composed) begin
 			(* parallel_case *)
 			case (1'b1)
 				latched_branch: begin
@@ -1486,10 +1499,7 @@ module picorv32 #(
 		decoder_pseudo_trigger_q <= decoder_pseudo_trigger;
 		do_waitirq <= 0;
 
-		if (ENABLE_MCOMPOSE && HART_ID == 0)
-			mcompose_instr_out <= (mem_do_rinst && mem_done) ? mem_rdata_q : 32'b0;
-		else
-			mcompose_instr_out <= 32'b0;
+		mcompose_decoder_trigger <= (SECONDARY_CORE && mcompose_ready) ? mcompose_exec_in : 0;
 		
 		trace_valid <= 0;
 
@@ -1517,9 +1527,9 @@ module picorv32 #(
 			irq_state <= 0;
 			eoi <= 0;
 			timer <= 0;
-			if (ENABLE_MCOMPOSE && HART_ID == 0)
+			if (PRIMARY_CORE)
 				mcompose <= 0;
-			if (ENABLE_MCOMPOSE && HART_ID > 0)
+			if (ENABLE_MCOMPOSE)
 				mcompose_ready <= 0;
 			if (~STACKADDR) begin
 				latched_store <= 1;
@@ -1535,7 +1545,17 @@ module picorv32 #(
 			end
 
 			cpu_state_composed: begin
-				if (mcompose_exec_in) begin
+				latched_store <= 0;
+				latched_stalu <= 0;
+				latched_branch <= 0;
+				latched_is_lu <= 0;
+				latched_is_lh <= 0;
+				latched_is_lb <= 0;
+				latched_rd <= decoded_rd;
+				latched_compr <= compressed_instr;
+
+				if (mcompose_decoder_trigger) begin
+					`debug($display("-- %-0t", $time);)
 					if (ENABLE_COUNTERS) begin
 						count_instr <= count_instr + 1;
 						if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
@@ -1544,15 +1564,10 @@ module picorv32 #(
 					mem_do_prefetch <= 0;
 					cpu_state <= cpu_state_ld_rs1;
 				end
-
-				if (!is_composed) begin
-					mcompose_ready <= 0;
-					cpu_state <= cpu_state_fetch;
-				end
 			end
 
 			cpu_state_fetch: begin
-				if (is_composed_ready || !is_composed || HART_ID > 0) begin
+				if (is_composed_ready || !is_composed || SECONDARY_CORE) begin
 					mem_do_rinst <= !decoder_trigger && !do_waitirq;
 					mem_wordsize <= 0;
 
@@ -1665,14 +1680,14 @@ module picorv32 #(
 									pcpi_valid <= 0;
 									reg_out <= pcpi_int_rd;
 									latched_store <= pcpi_int_wr;
-									cpu_state <= cpu_state_fetch;
+									cpu_state <= cpu_state_fetch_or_composed;
 								end else
 								if (CATCH_ILLINSN && (pcpi_timeout || instr_ecall_ebreak)) begin
 									pcpi_valid <= 0;
 									`debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
 									if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active) begin
 										next_irq_pending[irq_ebreak] = 1;
-										cpu_state <= cpu_state_fetch;
+										cpu_state <= cpu_state_fetch_or_composed;
 									end else
 										cpu_state <= cpu_state_trap;
 								end
@@ -1683,7 +1698,7 @@ module picorv32 #(
 							`debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
 							if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active) begin
 								next_irq_pending[irq_ebreak] = 1;
-								cpu_state <= cpu_state_fetch;
+								cpu_state <= cpu_state_fetch_or_composed;
 							end else
 								cpu_state <= cpu_state_trap;
 						end
@@ -1703,22 +1718,32 @@ module picorv32 #(
 								reg_out <= HART_ID;
 						endcase
 						latched_store <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
-					(ENABLE_MCOMPOSE && HART_ID == 0) && instr_rdmcompose: begin
-						reg_out <= mcompose;
+					ENABLE_MCOMPOSE && instr_rdmcompose: begin
+						reg_out <= PRIMARY_CORE ? mcompose : mcompose_in;
 						latched_store <= 1;
 						cpu_state <= cpu_state_fetch;
 					end
-					(ENABLE_MCOMPOSE && HART_ID == 0) && instr_wrmcompose: begin
+					PRIMARY_CORE && instr_wrmcompose: begin
 						reg_out <= mcompose;
 						mcompose <= cpuregs_rs1;
 						latched_store <= 1;
 						cpu_state <= cpu_state_fetch;
 					end
-					(ENABLE_MCOMPOSE && HART_ID > 0) && instr_wrmcompose: begin
-						cpu_state <= cpu_state_composed;
-						mcompose_ready <= 1;
+					SECONDARY_CORE && instr_wrmcompose: begin
+						mcompose_ready <= (cpuregs_rs1 != 0);
+						cpu_state <= (cpuregs_rs1 != 0) ? cpu_state_composed : cpu_state_fetch;
+					end
+					PRIMARY_CORE && instr_wrmcomposei: begin
+						reg_out <= mcompose;
+						mcompose[4:0] <= decoded_rs1;
+						latched_store <= 1;
+						cpu_state <= cpu_state_fetch;
+					end
+					SECONDARY_CORE && instr_wrmcomposei: begin
+						mcompose_ready <= (decoded_rs1 != 0);
+						cpu_state <= (decoded_rs1 != 0) ? cpu_state_composed : cpu_state_fetch;
 					end
 					is_lui_auipc_jal: begin
 						reg_op1 <= instr_lui ? 0 : reg_pc;
@@ -1735,7 +1760,7 @@ module picorv32 #(
 						dbg_rs1val <= cpuregs_rs1;
 						dbg_rs1val_valid <= 1;
 						latched_store <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
 					ENABLE_IRQ && ENABLE_IRQ_QREGS && instr_setq: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -1744,7 +1769,7 @@ module picorv32 #(
 						dbg_rs1val_valid <= 1;
 						latched_rd <= latched_rd | irqregs_offset;
 						latched_store <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
 					ENABLE_IRQ && instr_retirq: begin
 						eoi <= 0;
@@ -1755,7 +1780,7 @@ module picorv32 #(
 						reg_out <= CATCH_MISALIGN ? (cpuregs_rs1 & 32'h fffffffe) : cpuregs_rs1;
 						dbg_rs1val <= cpuregs_rs1;
 						dbg_rs1val_valid <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
 					ENABLE_IRQ && instr_maskirq: begin
 						latched_store <= 1;
@@ -1764,7 +1789,7 @@ module picorv32 #(
 						irq_mask <= cpuregs_rs1 | MASKED_IRQ;
 						dbg_rs1val <= cpuregs_rs1;
 						dbg_rs1val_valid <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
 					ENABLE_IRQ && ENABLE_IRQ_TIMER && instr_timer: begin
 						latched_store <= 1;
@@ -1773,7 +1798,7 @@ module picorv32 #(
 						timer <= cpuregs_rs1;
 						dbg_rs1val <= cpuregs_rs1;
 						dbg_rs1val_valid <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
 					is_lb_lh_lw_lbu_lhu && !instr_trap: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -1854,14 +1879,14 @@ module picorv32 #(
 							pcpi_valid <= 0;
 							reg_out <= pcpi_int_rd;
 							latched_store <= pcpi_int_wr;
-							cpu_state <= cpu_state_fetch;
+							cpu_state <= cpu_state_fetch_or_composed;
 						end else
 						if (CATCH_ILLINSN && (pcpi_timeout || instr_ecall_ebreak)) begin
 							pcpi_valid <= 0;
 							`debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
 							if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active) begin
 								next_irq_pending[irq_ebreak] = 1;
-								cpu_state <= cpu_state_fetch;
+								cpu_state <= cpu_state_fetch_or_composed;
 							end else
 								cpu_state <= cpu_state_trap;
 						end
@@ -1895,7 +1920,7 @@ module picorv32 #(
 					latched_store <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
 					latched_branch <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
 					if (mem_done)
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					if (TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0) begin
 						decoder_trigger <= 0;
 						set_mem_do_rinst = 1;
@@ -1904,7 +1929,7 @@ module picorv32 #(
 					latched_branch <= instr_jalr;
 					latched_store <= 1;
 					latched_stalu <= 1;
-					cpu_state <= cpu_state_fetch;
+					cpu_state <= cpu_state_fetch_or_composed;
 				end
 			end
 
@@ -1913,7 +1938,7 @@ module picorv32 #(
 				if (reg_sh == 0) begin
 					reg_out <= reg_op1;
 					mem_do_rinst <= mem_do_prefetch;
-					cpu_state <= cpu_state_fetch;
+					cpu_state <= cpu_state_fetch_or_composed;
 				end else if (TWO_STAGE_SHIFT && reg_sh >= 4) begin
 					(* parallel_case, full_case *)
 					case (1'b1)
@@ -1952,7 +1977,7 @@ module picorv32 #(
 						set_mem_do_wdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 						decoder_trigger <= 1;
 						decoder_pseudo_trigger <= 1;
 					end
@@ -1988,7 +2013,7 @@ module picorv32 #(
 						endcase
 						decoder_trigger <= 1;
 						decoder_pseudo_trigger <= 1;
-						cpu_state <= cpu_state_fetch;
+						cpu_state <= cpu_state_fetch_or_composed;
 					end
 				end
 			end

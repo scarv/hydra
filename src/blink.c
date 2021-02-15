@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include "uart.h"
 
 #define COUNTER_BITS 19
 

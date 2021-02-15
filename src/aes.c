@@ -29,7 +29,6 @@ NOTE:   String length must be evenly divisible by 16byte (str_len % 16 == 0)
 /* Includes:                                                                 */
 /*****************************************************************************/
 #include "aes.h"
-#include "uart.h"
 
 // The number of columns comprising a state in AES. This is a constant in AES. Value=4
 #define Nb 4

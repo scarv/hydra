@@ -6,7 +6,8 @@ module soc #(
 ) (
 	input clk,
 	output reg [3:0] leds,
-	output reg [2:0] dbg,
+	output reg [6:0] dbg,
+	output reg [31:0] instr_dbg,
     output uart_tx
 );
 
@@ -167,7 +168,11 @@ module soc #(
 		mem_ready <= 0;
         tx_send   <= 0;
 
-		dbg <= mcompose_ready;
+		dbg[2:0] <= mcompose_ready;
+		dbg[6:3] <= mcompose;
+
+		if (mcompose_exec)
+			instr_dbg <= mcompose_instr;
 
 		if (resetn && mem_access[mem_arb_counter] && !mem_ready[mem_arb_counter]) begin
 			(* parallel_case *)

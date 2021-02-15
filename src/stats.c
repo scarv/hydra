@@ -1,5 +1,5 @@
 #include "stats.h"
-#include "uart.h"
+#include "sys.h"
 
 void print_stats(unsigned int cycles, unsigned int instructions) {
     print_int(cycles);
