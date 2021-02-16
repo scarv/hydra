@@ -8,6 +8,8 @@
 * One primary core and any number of secondary cores
 * `mcompose` read/write CSR at address 0x7C0
     * Primary core can read and write to this register.
+    * The value of the register is outputted by the primary core on the
+      `mcompose` bus, which connects to the secondary cores.
     * The default value of `mcompose` is 0. In this state, all cores behave
       normally and execute instructions independentely.
     * The primary core can write a value `n` to `mcompose`. When this happens,
@@ -28,9 +30,11 @@ ready, so it raises its ready signal which propagates to Core #0.
 All three cores are now composed and ready to execute.
 
 When an instruction is fetched on the primary core, it outputs the instruction
-to the secondary cores so they can execute it in parallel. The carry signals
-between cores allow addition and shift instructions to function correctly across
-the wide datapath.
+to the secondary cores so they can execute it in parallel. Specifically,
+it presents the instruction on the `mcompose_instr` bus and outputs a pulse on
+`mcompose_exec`, triggering the other cores to execute that instruction. The
+carry signals between cores allow addition and shift instructions to function
+correctly across the wide datapath.
 
 After they are done, the primary core writes **0** to `mcompose`, causing
-cores #1 and #2 to resume execution.
+cores #1 and #2 to resume normal execution.
