@@ -11,6 +11,7 @@
 .global AES_ECB_encrypt
 
 .global multi_add_stats
+.global multi_add_comp_stats
 .global multi_sub_stats
 .global multi_xor_stats
 .global multi_xor_comp_stats
@@ -47,6 +48,7 @@
 .endm
 
 multi_add_stats: stats multi_add
+multi_add_comp_stats: stats multi_add_comp
 multi_sub_stats: stats multi_sub
 multi_xor_stats: stats multi_xor
 multi_xor_comp_stats: stats multi_xor_comp

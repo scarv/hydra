@@ -16,7 +16,7 @@ arty: $(BUILD_DIR)/arty.bit
 
 $(BUILD_DIR)/firmware.elf: $(FIRMWARE_DIR)/*.c $(FIRMWARE_DIR)/*.S $(FIRMWARE_DIR)/firmware.lds
 	$(TOOLCHAIN_PREFIX)gcc \
-		-march=rv32i -Os -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
+		-march=rv32i -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
 		-o $@ $(filter %.c, $^) $(filter %.S, $^) \
 		--std=gnu99 -lgcc -Wl,-Bstatic,-T,$(FIRMWARE_DIR)/firmware.lds,--strip-debug
 	chmod -x $@

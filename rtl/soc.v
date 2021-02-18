@@ -60,6 +60,8 @@ module soc #(
 	wire [31:0] mcompose_instr;
 	wire [N_CORES*4 - 1 : 0] dummy;
 	wire [N_CORES-2 : 0] mcompose_ready;
+	wire [N_CORES-1 : 0] mcompose_left_carry;
+	wire [N_CORES-2 : 0] mcompose_right_carry;
 
 	// -------------------------------
 	// PicoRV32 Cores
@@ -87,10 +89,12 @@ module soc #(
 		.mem_la_wdata      (mem_la_wdata[31: 0]),
 		.mem_la_wstrb      (mem_la_wstrb[ 3: 0]),
 		.mem_rdata         (mem_rdata   [31: 0]),
-		.mcompose_out      (mcompose),
-		.mcompose_ready_in (mcompose_ready[0]),
-		.mcompose_instr_out(mcompose_instr),
-		.mcompose_exec_out (mcompose_exec)
+		.mcompose_out            (mcompose),
+		.mcompose_ready_in       (mcompose_ready[0]),
+		.mcompose_left_carry_out (mcompose_left_carry[0]),
+		.mcompose_right_carry_in (mcompose_right_carry[1]),
+		.mcompose_instr_out      (mcompose_instr),
+		.mcompose_exec_out       (mcompose_exec)
 	);
 	/* verilator lint_on PINMISSING */
 
@@ -121,11 +125,15 @@ module soc #(
 				.mem_la_wdata	   (mem_la_wdata [32*core_num + 31 -: 32]),
 				.mem_la_wstrb      (mem_la_wstrb [4*core_num  + 3  -: 4]),
 				.mem_rdata         (mem_rdata    [32*core_num + 31 -: 32]),
-				.mcompose_in       (mcompose),
-				.mcompose_ready_in ((core_num == N_CORES - 1) ? 1'b1 : mcompose_ready[core_num]),
-				.mcompose_ready_out(mcompose_ready[core_num - 1]),
-				.mcompose_instr_in (mcompose_instr),
-		   		.mcompose_exec_in  (mcompose_exec)
+				.mcompose_in             (mcompose),
+				.mcompose_ready_in       ((core_num == N_CORES - 1) ? 1'b1 : mcompose_ready[core_num]),
+				.mcompose_left_carry_in  (mcompose_left_carry[core_num - 1]),
+				.mcompose_right_carry_in ((core_num == N_CORES - 1) ? 1'b0 : mcompose_right_carry[core_num]),
+				.mcompose_ready_out      (mcompose_ready[core_num - 1]),
+				.mcompose_left_carry_out (mcompose_left_carry[core_num]),
+				.mcompose_right_carry_out(mcompose_right_carry[core_num - 1]),
+				.mcompose_instr_in       (mcompose_instr),
+		   		.mcompose_exec_in        (mcompose_exec)
 			);
 			/* verilator lint_on PINMISSING */
 

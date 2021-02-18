@@ -26,7 +26,7 @@
 #define temp           a4
 #define carry          a5
 #define temp_carry     a7
-#define bytes_per_word a7
+#define bytes_per_word a3
 #define n_words        a3
 #define n_cores        a4
 #define n_bytes        a6
@@ -124,31 +124,47 @@ multi_sub_end:
 // extern int multi_add_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
 multi_add_comp:
     li   carry, 0
-    csrr t0, mhartid
-    add a_addr, a_addr, t0
-    add b_addr, b_addr, t0
-    add res_addr, res_addr, t0
+    csrr hart_id, mhartid // Read HARTID
+    slli hart_id, hart_id, 2
+    add a_addr, a_addr, hart_id
+    add b_addr, b_addr, hart_id
+    add res_addr, res_addr, hart_id
     slli n_bytes, n_words, 2
-    slli n_cores, n_cores, 2
+    slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
+    bne  hart_id, zero, multi_add_comp_loop_sec
 multi_add_comp_loop:
     beq  a_addr, a_addr_end, multi_add_comp_end
     lw   a_value, 0(a_addr)
     lw   b_value, 0(b_addr)
     // compose
+    csrw mcompose, n_cores
     add  res_value, a_value, carry
     sltu carry, res_value, a_value
     add  res_value, res_value, b_value
     sltu temp_carry, res_value, b_value
-    or   carry, carry, temp_carry
+    csrw mcompose, zero
     // uncompose
+    or   carry, carry, temp_carry
     sw   res_value, 0(res_addr)
-    add a_addr, a_addr, n_cores
-    add b_addr, b_addr, n_cores
-    add res_addr, res_addr, n_cores
-    j   multi_add_comp_loop
+    add a_addr, a_addr, bytes_per_word
+    add b_addr, b_addr, bytes_per_word
+    add res_addr, res_addr, bytes_per_word
+    j    multi_add_comp_loop
+multi_add_comp_loop_sec:
+    beq  a_addr, a_addr_end, multi_add_comp_end
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
+    // compose
+    csrw mcompose, n_cores
+    // uncompose
+    li  carry, 0
+    sw  res_value, 0(res_addr)
+    add a_addr, a_addr, bytes_per_word
+    add b_addr, b_addr, bytes_per_word
+    add res_addr, res_addr, bytes_per_word
+    j   multi_add_comp_loop_sec
 multi_add_comp_end:
-    mv   carry_out, carry
     ret
 
 // extern void multi_xor(const void *a, const void *b, void *res, int n_words);

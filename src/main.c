@@ -7,10 +7,9 @@
 #define NUM_BYTES (NUM_WORDS << 2)
 #define NUM_BITS  (NUM_WORDS << 5)
 
-unsigned int a[NUM_WORDS];
-unsigned int b[NUM_WORDS];
-unsigned int res[NUM_WORDS];
-volatile int initialised = 0;
+unsigned int a[NUM_WORDS] = {0xdeadbeef, 0xab43032b};
+unsigned int b[NUM_WORDS] = {0xdd00d420, 0x9beeff00};
+unsigned int res[NUM_WORDS] = {0};
 
 // Pre-calculated correct results
 const unsigned int a_xor_b[NUM_WORDS] = {0x3ad6acf, 0x30adfc2b, 0, 0};
@@ -31,15 +30,6 @@ int check_result(const void *a, const void *b, int n_bytes) {
         if (a_bytes[i] != b_bytes[i]) success = 0;
     }
     return success;
-}
-
-void initialise_values() {
-    memset(a, NUM_BYTES, 0);
-    memset(b, NUM_BYTES, 0);
-    memset(res, NUM_BYTES, 0);
-    a[0] = 0xdeadbeef; a[1] = 0xab43032b;
-    b[0] = 0xdd00d420; b[1] = 0x9beeff00;
-    initialised = 1;
 }
 
 void test_xor() {
@@ -69,6 +59,16 @@ void test_add() {
 
     if (!check_result(res, a_plus_b, NUM_BYTES)) {
         print_string("multi_add failed!\n");
+    }
+
+    memset(res, 0, NUM_BYTES);
+
+    print_int(NUM_BITS);
+    print_string("-bit composed addition: ");
+    multi_add_comp_stats(a, b, res, NUM_WORDS, 4);
+
+    if (!check_result(res, a_plus_b, NUM_BYTES)) {
+        print_string("composed multi_add failed!\n");
     }
 }
 
@@ -102,7 +102,6 @@ int main()
 
     if (hart_id == 0) {
         print_string("Hello from core #0\n");
-        initialise_values();
 
         test_xor();
         test_add();
@@ -110,9 +109,10 @@ int main()
         test_aes();
 
     } else {
-        while (!initialised);
         multi_xor_comp(a, b, res, NUM_WORDS, 4);
+        multi_add_comp(a, b, res, NUM_WORDS, 4);
     }
 
     blink(hart_id);
+    return 0;
 }
