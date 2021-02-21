@@ -7,15 +7,17 @@
 #define NUM_BYTES (NUM_WORDS << 2)
 #define NUM_BITS  (NUM_WORDS << 5)
 
+#define NUM_CORES 2
+
 unsigned int a[NUM_WORDS] = {0xdeadbeef, 0xab43032b};
 unsigned int b[NUM_WORDS] = {0xdd00d420, 0x9beeff00};
-unsigned int res[NUM_WORDS] = {0};
+unsigned int res[NUM_WORDS * 2] = {0};
 
 // Pre-calculated correct results
 const unsigned int a_xor_b[NUM_WORDS] = {0x3ad6acf, 0x30adfc2b, 0, 0};
 const unsigned int a_plus_b[NUM_WORDS] = {0xbbae930f, 0x4732022c, 1, 0};
 const unsigned int a_minus_b[NUM_WORDS] = {0x01aceacf, 0xf54042b, 0, 0};
-const unsigned int a_times_b[NUM_WORDS] = {0xad5c9e0, 0xe9ec8b8, 0xd69e5297, 0x685175d0};
+const unsigned int a_times_b[NUM_WORDS * 2] = {0xad5c9e0, 0xe9ec8b8, 0xd69e5297, 0x685175d0};
 
 const uint8_t aes_key[] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
 const uint8_t aes_out[] = { 0x3a, 0xd7, 0x7b, 0xb4, 0x0d, 0x7a, 0x36, 0x60, 0xa8, 0x9e, 0xca, 0xf3, 0x24, 0x66, 0xef, 0x97 };
@@ -45,7 +47,7 @@ void test_xor() {
 
     print_int(NUM_BITS);
     print_string("-bit composed XOR: ");
-    multi_xor_comp_stats(a, b, res, NUM_WORDS, 4);
+    multi_xor_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
 
     if (!check_result(res, a_xor_b, NUM_BYTES)) {
         print_string("composed multi_xor failed!\n");
@@ -65,7 +67,7 @@ void test_add() {
 
     print_int(NUM_BITS);
     print_string("-bit composed addition: ");
-    multi_add_comp_stats(a, b, res, NUM_WORDS, 4);
+    multi_add_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
 
     if (!check_result(res, a_plus_b, NUM_BYTES)) {
         print_string("composed multi_add failed!\n");
@@ -79,6 +81,16 @@ void test_subtract() {
 
     if (!check_result(res, a_minus_b, NUM_BYTES)) {
         print_string("multi_sub failed!\n");
+    }
+}
+
+void test_multiply() {
+    print_int(NUM_BITS);
+    print_string("-bit multiplication: ");
+    multi_mult_stats(a, b, res, NUM_WORDS);
+
+    if (!check_result(res, a_times_b, NUM_BYTES * 2)) {
+        print_string("multi_mult failed!\n");
     }
 }
 
@@ -106,11 +118,12 @@ int main()
         test_xor();
         test_add();
         test_subtract();
+        test_multiply();
         test_aes();
 
     } else {
-        multi_xor_comp(a, b, res, NUM_WORDS, 4);
-        multi_add_comp(a, b, res, NUM_WORDS, 4);
+        multi_xor_comp(a, b, res, NUM_WORDS, NUM_CORES);
+        multi_add_comp(a, b, res, NUM_WORDS, NUM_CORES);
     }
 
     blink(hart_id);

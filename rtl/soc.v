@@ -11,8 +11,10 @@ module soc #(
     output uart_tx
 );
 
-	localparam N_CORES = 4;
+	localparam N_CORES = 2;
 	localparam N_CORES_BITS = (N_CORES == 4) ? 2 : 1;
+
+	localparam M_EXTENSION = 1;
 
 	// -------------------------------
 	// Reset Generator
@@ -73,6 +75,8 @@ module soc #(
 		.ENABLE_COUNTERS64(0),
 		.ENABLE_MHARTID(1),
 		.ENABLE_MCOMPOSE(1),
+		.ENABLE_MUL(M_EXTENSION),
+		.ENABLE_DIV(M_EXTENSION),
 		.LATCHED_MEM_RDATA(1),
 		.TWO_STAGE_SHIFT(0),
 		.TWO_CYCLE_ALU(0),
@@ -92,7 +96,7 @@ module soc #(
 		.mcompose_out            (mcompose),
 		.mcompose_ready_in       (mcompose_ready[0]),
 		.mcompose_left_carry_out (mcompose_left_carry[0]),
-		.mcompose_right_carry_in (mcompose_right_carry[1]),
+		.mcompose_right_carry_in (mcompose_right_carry[0]),
 		.mcompose_instr_out      (mcompose_instr),
 		.mcompose_exec_out       (mcompose_exec)
 	);
@@ -109,6 +113,8 @@ module soc #(
 				.ENABLE_COUNTERS64(0),
 				.ENABLE_MHARTID(1),
 				.ENABLE_MCOMPOSE(1),
+				.ENABLE_MUL(M_EXTENSION),
+				.ENABLE_DIV(M_EXTENSION),
 				.LATCHED_MEM_RDATA(1),
 				.TWO_STAGE_SHIFT(0),
 				.TWO_CYCLE_ALU(0),

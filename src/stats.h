@@ -5,7 +5,7 @@ void print_stats(unsigned int cycles, unsigned int instructions);
 int multi_add_stats(const void *a, const void *b, void *res, int n_words);
 int multi_add_comp_stats(const void *a, const void *b, void *res, int n_words, int n_cores);
 int multi_sub_stats(const void *a, const void *b, void *res, int n_words);
-// void multi_mult_stats(const void *a, const void *b, void *res, int n_words);
+void multi_mult_stats(const void *a, const void *b, void *res, int n_words);
 void multi_xor_stats(const void *a, const void *b, void *res, int n_words);
 void multi_xor_comp_stats(const void *a, const void *b, void *res, int n_words, int n_cores);
 

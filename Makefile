@@ -4,6 +4,8 @@ FIRMWARE_DIR = src
 RTL_DIR = rtl
 BUILD_DIR = build
 
+SOURCES = init.S main.c sys.c multi_arithmetic.S stats.c stats.S aes.c blink.c
+
 MEM_SIZE = 8192
 STACK_SIZE = 256
 
@@ -14,9 +16,9 @@ arty: $(BUILD_DIR)/arty.bit
 ## -------------------
 ## firmware generation
 
-$(BUILD_DIR)/firmware.elf: $(FIRMWARE_DIR)/*.c $(FIRMWARE_DIR)/*.S $(FIRMWARE_DIR)/firmware.lds
+$(BUILD_DIR)/firmware.elf: $(patsubst %, $(FIRMWARE_DIR)/%, $(SOURCES)) $(FIRMWARE_DIR)/firmware.lds
 	$(TOOLCHAIN_PREFIX)gcc \
-		-march=rv32i -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
+		-march=rv32im -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
 		-o $@ $(filter %.c, $^) $(filter %.S, $^) \
 		--std=gnu99 -lgcc -Wl,-Bstatic,-T,$(FIRMWARE_DIR)/firmware.lds,--strip-debug
 	chmod -x $@
