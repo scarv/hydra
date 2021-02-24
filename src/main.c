@@ -92,6 +92,18 @@ void test_multiply() {
     if (!check_result(res, a_times_b, NUM_BYTES * 2)) {
         print_string("multi_mult failed!\n");
     }
+
+    memset(res, 0, NUM_BYTES * 2);
+
+    print_int(NUM_BITS);
+    print_string("-bit composed multiplication: ");
+    set_mcompose(NUM_CORES);
+    set_mcompose(0);
+    multi_mult_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
+
+    if (!check_result(res, a_times_b, NUM_BYTES)) {
+        print_string("composed multi_mult failed!\n");
+    }
 }
 
 void test_aes() {
@@ -124,6 +136,8 @@ int main()
     } else {
         multi_xor_comp(a, b, res, NUM_WORDS, NUM_CORES);
         multi_add_comp(a, b, res, NUM_WORDS, NUM_CORES);
+        set_mcompose(NUM_CORES);
+        multi_mult_comp(a, b, res, NUM_WORDS, NUM_CORES);
     }
 
     blink(hart_id);

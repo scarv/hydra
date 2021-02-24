@@ -235,7 +235,7 @@ static void MixColumns(state_t* state)
       ((y>>3 & 1) * xtime(xtime(xtime(x)))) ^         \
 
 // Cipher is the main function that encrypts the PlainText.
-static void __attribute__((optimize("O2"))) Cipher(state_t* state, const uint8_t* RoundKey)
+static void Cipher(state_t* state, const uint8_t* RoundKey)
 {
     uint8_t round = 0;
 

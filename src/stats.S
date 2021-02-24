@@ -1,21 +1,13 @@
 .text
 .balign 4
 
-.global multi_add
-.global multi_sub
-.global multi_xor
-.global multi_xor_comp
-.global print_stats
-
-.global AES_init_ctx
-.global AES_ECB_encrypt
-
 .global multi_add_stats
 .global multi_add_comp_stats
 .global multi_sub_stats
 .global multi_xor_stats
 .global multi_xor_comp_stats
 .global multi_mult_stats
+.global multi_mult_comp_stats
 
 .global AES_init_ctx_stats
 .global AES_ECB_encrypt_stats
@@ -54,6 +46,7 @@ multi_sub_stats: stats multi_sub
 multi_xor_stats: stats multi_xor
 multi_xor_comp_stats: stats multi_xor_comp
 multi_mult_stats: stats multi_mult
+multi_mult_comp_stats: stats multi_mult_comp
 AES_init_ctx_stats: stats AES_init_ctx
 AES_ECB_encrypt_stats: stats AES_ECB_encrypt
     
