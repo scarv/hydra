@@ -4,6 +4,8 @@ void print_string(const char *s);
 
 void print_int(unsigned int x);
 
+void print_hex(unsigned int x);
+
 void *memcpy(void *s1, const void *s2, unsigned int n);
 
 void *memset(void *str, int c, unsigned int n);

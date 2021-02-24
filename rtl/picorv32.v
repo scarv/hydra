@@ -135,8 +135,8 @@ module picorv32 #(
 	input      [31:0] mcompose_instr_in,
 	output 			  mcompose_exec_out,
 	input             mcompose_exec_in,
-	output reg	  	  mcompose_left_carry_out,
-	input             mcompose_left_carry_in,
+	output reg [2:0]  mcompose_left_carry_out,
+	input      [2:0]  mcompose_left_carry_in,
 	output reg		  mcompose_right_carry_out,
 	input             mcompose_right_carry_in,
 
@@ -305,6 +305,11 @@ module picorv32 #(
 	wire        pcpi_mul_wait;
 	wire        pcpi_mul_ready;
 
+	wire        pcpi_mul_rs2_shift_out;
+	wire        pcpi_mul_rs1_shift_out;
+	wire        pcpi_mul_rdx_shift_out;
+	wire        pcpi_mul_rs1_lsb_out;
+
 	wire        pcpi_div_wr;
 	wire [31:0] pcpi_div_rd;
 	wire        pcpi_div_wait;
@@ -329,9 +334,18 @@ module picorv32 #(
 			.pcpi_ready(pcpi_mul_ready )
 		);
 	end else if (ENABLE_MUL) begin
-		picorv32_pcpi_mul pcpi_mul (
+		picorv32_pcpi_mul #(.HART_ID(0)) pcpi_mul (
 			.clk       (clk            ),
 			.resetn    (resetn         ),
+			.mcompose  ((PRIMARY_CORE) ? mcompose : mcompose_in),
+			.rs1_shift_out(pcpi_mul_rs1_shift_out   ),
+			.rs1_shift_in (mcompose_right_carry_in  ),
+			.rs2_shift_out(pcpi_mul_rs2_shift_out   ),
+			.rs2_shift_in (mcompose_left_carry_in[0]),
+			.rdx_shift_out(pcpi_mul_rdx_shift_out   ),
+			.rdx_shift_in (mcompose_left_carry_in[1]),
+			.rs1_lsb_out  (pcpi_mul_rs1_lsb_out     ),
+			.rs1_lsb_in   (mcompose_left_carry_in[2]),
 			.pcpi_valid(pcpi_valid     ),
 			.pcpi_insn (pcpi_insn      ),
 			.pcpi_rs1  (pcpi_rs1       ),
@@ -696,6 +710,7 @@ module picorv32 #(
 	reg instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and;
 	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_ecall_ebreak;
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
+	reg instr_mul, instr_mulh, instr_mulhsu, instr_mulhu;
 	wire instr_trap;
 
 	reg [regindex_bits-1:0] decoded_rd, decoded_rs1, decoded_rs2;
@@ -731,6 +746,8 @@ module picorv32 #(
 
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh_rdmhartid;
 	assign is_rdcycle_rdcycleh_rdinstr_rdinstrh_rdmhartid = |{instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid};
+
+	wire instr_any_mul = |{instr_mul, instr_mulh, instr_mulhsu, instr_mulhu};
 
 	reg [63:0] new_ascii_instr;
 	`FORMAL_KEEP reg [63:0] dbg_ascii_instr;
@@ -1124,6 +1141,11 @@ module picorv32 #(
 			instr_or    <= is_alu_reg_reg && instr_source_q[14:12] == 3'b110 && instr_source_q[31:25] == 7'b0000000;
 			instr_and   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b111 && instr_source_q[31:25] == 7'b0000000;
 
+			instr_mul    <= is_alu_reg_reg && instr_source_q[14:12] == 3'b000 && instr_source_q[31:25] == 7'b0000001;
+			instr_mulh   <= is_alu_reg_reg && instr_source_q[14:12] == 3'b001 && instr_source_q[31:25] == 7'b0000001;
+			instr_mulhsu <= is_alu_reg_reg && instr_source_q[14:12] == 3'b010 && instr_source_q[31:25] == 7'b0000001;
+			instr_mulhu  <= is_alu_reg_reg && instr_source_q[14:12] == 3'b011 && instr_source_q[31:25] == 7'b0000001;
+
 			instr_rdcycle  <= ((instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11000000000000000010) ||
 			                   (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11000000000100000010)) && ENABLE_COUNTERS;
 			instr_rdcycleh <= ((instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b11001000000000000010) ||
@@ -1282,13 +1304,15 @@ module picorv32 #(
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
 			if (SECONDARY_CORE && mcompose_ready)
-				alu_add_sub <= instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in : reg_op1 + reg_op2 + mcompose_left_carry_in;
+				alu_add_sub <= instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_eq <= reg_op1 == reg_op2;
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
 			if (PRIMARY_CORE && is_composed_ready)
-				alu_ltu <= mcompose_right_carry_in;
+				alu_ltu <= mcompose_left_carry_in[0];
+			else if (is_composed_secondary)
+				alu_ltu <= 0;
 			else
 				alu_ltu <= reg_op1 < reg_op2;
 			alu_shl <= reg_op1 << reg_op2[4:0];
@@ -1297,13 +1321,15 @@ module picorv32 #(
 	end else begin
 		always @* begin
 			if (SECONDARY_CORE && mcompose_ready)
-				alu_add_sub = instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in : reg_op1 + reg_op2 + mcompose_left_carry_in;
+				alu_add_sub = instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_eq = reg_op1 == reg_op2;
 			alu_lts = $signed(reg_op1) < $signed(reg_op2);
 			if (PRIMARY_CORE && is_composed_ready)
-				alu_ltu = mcompose_right_carry_in;
+				alu_ltu = mcompose_left_carry_in[0];
+			else if (is_composed_secondary)
+				alu_ltu = 0;
 			else
 				alu_ltu = reg_op1 < reg_op2;
 			alu_shl = reg_op1 << reg_op2[4:0];
@@ -1313,18 +1339,31 @@ module picorv32 #(
 
 	always @* begin
 
+		mcompose_left_carry_out = 3'b0;
 		if (PRIMARY_CORE || SECONDARY_CORE) begin
 			if (is_sltiu_bltu_sltu)
-				mcompose_left_carry_out = reg_op1 < reg_op2;
-			else
-				mcompose_left_carry_out = alu_out[32];
+				if (mcompose_in - 1 == HART_ID)
+					mcompose_left_carry_out[0] = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
+				else
+					mcompose_left_carry_out[0] = reg_op1 < reg_op2;
+			else if (instr_any_mul) begin
+				mcompose_left_carry_out[0] = pcpi_mul_rs2_shift_out;
+				mcompose_left_carry_out[1] = pcpi_mul_rdx_shift_out;
+				mcompose_left_carry_out[2] = pcpi_mul_rs1_lsb_out;
+			end else
+				mcompose_left_carry_out[0] = alu_out[32];
 		end
 
-		if (SECONDARY_CORE) begin
-			if (mcompose_in - 1 == HART_ID)
-				mcompose_right_carry_out = (reg_op1 == reg_op2) ? mcompose_left_carry_in : (reg_op1 < reg_op2);
-			else
-				mcompose_right_carry_out = mcompose_right_carry_in;
+		mcompose_right_carry_out = 1'b0;
+		if (is_composed_secondary) begin
+			if (is_sltiu_bltu_sltu) begin
+				// if (mcompose_in - 1 == HART_ID)
+				// 	mcompose_right_carry_out = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
+				// else
+				// 	mcompose_right_carry_out = mcompose_right_carry_in;
+			end else begin
+				mcompose_right_carry_out = pcpi_mul_rs1_shift_out;
+			end
 		end
 
 		alu_out_0 = 'bx;
@@ -2333,9 +2372,20 @@ endmodule
 
 module picorv32_pcpi_mul #(
 	parameter STEPS_AT_ONCE = 1,
-	parameter CARRY_CHAIN = 4
+	parameter CARRY_CHAIN = 4,
+	parameter HART_ID = 0
 ) (
 	input clk, resetn,
+
+	input [3:0] mcompose,
+	input       rs1_shift_in,
+	input       rs2_shift_in,
+	input       rdx_shift_in,
+	input       rs1_lsb_in,
+	output reg  rs1_shift_out,
+	output reg  rs2_shift_out,
+	output reg  rdx_shift_out,
+	output reg  rs1_lsb_out,
 
 	input             pcpi_valid,
 	input      [31:0] pcpi_insn,
@@ -2374,10 +2424,10 @@ module picorv32_pcpi_mul #(
 		pcpi_wait_q <= pcpi_wait;
 	end
 
-	reg [63:0] rs1, rs2, rd, rdx;
-	reg [63:0] next_rs1, next_rs2, this_rs2;
-	reg [63:0] next_rd, next_rdx, next_rdt;
-	reg [6:0] mul_counter;
+	reg [64:0] rs1, rs2, rd, rdx;
+	reg [64:0] next_rs1, next_rs2, this_rs2;
+	reg [64:0] next_rd, next_rdx, next_rdt;
+	reg [15:0] mul_counter;
 	reg mul_waiting;
 	reg mul_finish;
 	integer i, j;
@@ -2389,11 +2439,19 @@ module picorv32_pcpi_mul #(
 		next_rs1 = rs1;
 		next_rs2 = rs2;
 
+		rs1_lsb_out = (HART_ID == 0) ? rs1[0] : rs1_lsb_in;
+
 		for (i = 0; i < STEPS_AT_ONCE; i=i+1) begin
-			this_rs2 = next_rs1[0] ? next_rs2 : 0;
+			if (mcompose > HART_ID && HART_ID > 0)
+				this_rs2 = rs1_lsb_in ? next_rs2 : 0;
+			else
+				this_rs2 = next_rs1[0] ? next_rs2 : 0;
 			if (CARRY_CHAIN == 0) begin
 				next_rdt = next_rd ^ next_rdx ^ this_rs2;
-				next_rdx = ((next_rd & next_rdx) | (next_rd & this_rs2) | (next_rdx & this_rs2)) << 1;
+				next_rdx = ((next_rd & next_rdx) | (next_rd & this_rs2) | (next_rdx & this_rs2));
+				rdx_shift_out = (instr_any_mulh ? next_rdx[63] : next_rdx[31]);
+				next_rdx = next_rdx << 1;
+				next_rdx[0] = rdx_shift_in;
 				next_rd = next_rdt;
 			end else begin
 				next_rdt = 0;
@@ -2401,9 +2459,16 @@ module picorv32_pcpi_mul #(
 					{next_rdt[j+CARRY_CHAIN-1], next_rd[j +: CARRY_CHAIN]} =
 							next_rd[j +: CARRY_CHAIN] + next_rdx[j +: CARRY_CHAIN] + this_rs2[j +: CARRY_CHAIN];
 				next_rdx = next_rdt << 1;
+				rdx_shift_out = (instr_any_mulh ? next_rdx[64] : next_rdx[32]);
+				next_rdx[0] = rdx_shift_in;
 			end
+			rs1_shift_out = next_rs1[0];
 			next_rs1 = next_rs1 >> 1;
+			next_rs1[instr_any_mulh ? 63 : 31] = rs1_shift_in;
+
+			rs2_shift_out = (instr_any_mulh ? next_rs2[63] : next_rs2[31]);
 			next_rs2 = next_rs2 << 1;
+			next_rs2[0] = rs2_shift_in;
 		end
 	end
 
@@ -2425,7 +2490,10 @@ module picorv32_pcpi_mul #(
 
 			rd <= 0;
 			rdx <= 0;
-			mul_counter <= (instr_any_mulh ? 63 - STEPS_AT_ONCE : 31 - STEPS_AT_ONCE);
+			if (mcompose > 0)
+				mul_counter <= (instr_any_mulh ? ((64 * mcompose) - 1 - STEPS_AT_ONCE) : ((32 * mcompose) - 1 - STEPS_AT_ONCE));
+			else
+				mul_counter <= (instr_any_mulh ? 63 - STEPS_AT_ONCE : 31 - STEPS_AT_ONCE);
 			mul_waiting <= !mul_start;
 		end else begin
 			rd <= next_rd;
@@ -2434,7 +2502,7 @@ module picorv32_pcpi_mul #(
 			rs2 <= next_rs2;
 
 			mul_counter <= mul_counter - STEPS_AT_ONCE;
-			if (mul_counter[6]) begin
+			if (mul_counter[15]) begin
 				mul_finish <= 1;
 				mul_waiting <= 1;
 			end

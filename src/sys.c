@@ -35,6 +35,14 @@ void print_int(unsigned int x) {
     }
 }
 
+void print_hex(unsigned int x) {
+    for (int i = 7; i >= 0; i--) {
+        char c = (x >> (i * 4)) & 0xf;
+        if (c < 10) print_char(c + '0');
+        else print_char(c - 10 + 'a');
+    }
+}
+
 void *memcpy(void *s1, const void *s2, unsigned int n) {
     char *s1c = (char*)s1;
     char *s2c = (char*)s2;
