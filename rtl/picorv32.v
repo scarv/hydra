@@ -135,10 +135,10 @@ module picorv32 #(
 	input      [31:0] mcompose_instr_in,
 	output 			  mcompose_exec_out,
 	input             mcompose_exec_in,
-	output reg [2:0]  mcompose_left_carry_out,
-	input      [2:0]  mcompose_left_carry_in,
-	output reg		  mcompose_right_carry_out,
-	input             mcompose_right_carry_in,
+	output reg [4:0]  mcompose_left_carry_out,
+	input      [4:0]  mcompose_left_carry_in,
+	output reg [1:0]  mcompose_right_carry_out,
+	input      [1:0]  mcompose_right_carry_in,
 
 `ifdef RISCV_FORMAL
 	output reg        rvfi_valid,
@@ -225,25 +225,11 @@ module picorv32 #(
 	reg [31:0] mcompose;
 	reg        mcompose_ready;
 	reg        mcompose_decoder_trigger;
-	if (PRIMARY_CORE) begin
-		assign mcompose_out = mcompose[3:0];
-		assign mcompose_ready_out = 1'b0;
-		assign mcompose_exec_out = is_composed_ready && mem_do_rinst && mem_done;
-		assign mcompose_instr_out = (decoder_trigger) ? mem_rdata_q : mem_rdata_latched;
-	end
-	if (SECONDARY_CORE) begin
-		assign mcompose_out = 4'b0;
-		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (!is_composed);
-		assign mcompose_exec_out = 1'b0;
-		assign mcompose_instr_out = 32'b0;
-	end
 
-	wire        is_composed_primary = PRIMARY_CORE && (mcompose > 0);
-	wire        is_composed_secondary = SECONDARY_CORE && (mcompose_in > HART_ID);
-	wire        is_composed = is_composed_primary || is_composed_secondary;
-	wire        is_composed_ready = is_composed_primary && mcompose_ready_in;
-	wire [31:0] instr_source = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
-	wire [31:0] instr_source_q = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_q;
+	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0);
+	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_in > HART_ID);
+	wire       is_composed = is_composed_primary || is_composed_secondary;
+	wire       is_composed_ready = is_composed_primary && mcompose_ready_in;
 
 `ifndef PICORV32_REGS
 	reg [31:0] cpuregs [0:regfile_size-1];
@@ -305,9 +291,12 @@ module picorv32 #(
 	wire        pcpi_mul_wait;
 	wire        pcpi_mul_ready;
 
-	wire        pcpi_mul_rs2_shift_out;
-	wire        pcpi_mul_rs1_shift_out;
-	wire        pcpi_mul_rdx_shift_out;
+	wire        pcpi_mul_rs2_bit31_out;
+	wire        pcpi_mul_rs2_bit63_out;
+	wire        pcpi_mul_rs1_bit0_out;
+	wire        pcpi_mul_rs1_bit32_out;
+	wire        pcpi_mul_rdx_bit31_out;
+	wire        pcpi_mul_rdx_bit63_out;
 	wire        pcpi_mul_rs1_lsb_out;
 
 	wire        pcpi_div_wr;
@@ -334,18 +323,24 @@ module picorv32 #(
 			.pcpi_ready(pcpi_mul_ready )
 		);
 	end else if (ENABLE_MUL) begin
-		picorv32_pcpi_mul #(.HART_ID(0)) pcpi_mul (
+		picorv32_pcpi_mul #(.HART_ID(HART_ID)) pcpi_mul (
 			.clk       (clk            ),
 			.resetn    (resetn         ),
 			.mcompose  ((PRIMARY_CORE) ? mcompose : mcompose_in),
-			.rs1_shift_out(pcpi_mul_rs1_shift_out   ),
-			.rs1_shift_in (mcompose_right_carry_in  ),
-			.rs2_shift_out(pcpi_mul_rs2_shift_out   ),
-			.rs2_shift_in (mcompose_left_carry_in[0]),
-			.rdx_shift_out(pcpi_mul_rdx_shift_out   ),
-			.rdx_shift_in (mcompose_left_carry_in[1]),
-			.rs1_lsb_out  (pcpi_mul_rs1_lsb_out     ),
-			.rs1_lsb_in   (mcompose_left_carry_in[2]),
+			.rs1_lsb_in   (mcompose_left_carry_in[0]),
+			.rs2_bit0_in  (mcompose_left_carry_in[1]),
+			.rs2_bit32_in (mcompose_left_carry_in[2]),
+			.rdx_bit0_in  (mcompose_left_carry_in[3]),
+			.rdx_bit32_in (mcompose_left_carry_in[4]),
+			.rs1_bit31_in (mcompose_right_carry_in[0]),
+			.rs1_bit63_in (mcompose_right_carry_in[1]),
+			.rs1_lsb_out  (pcpi_mul_rs1_lsb_out      ),
+			.rs2_bit31_out(pcpi_mul_rs2_bit31_out    ),
+			.rs2_bit63_out(pcpi_mul_rs2_bit63_out    ),
+			.rs1_bit0_out (pcpi_mul_rs1_bit0_out     ),
+			.rs1_bit32_out(pcpi_mul_rs1_bit32_out    ),
+			.rdx_bit31_out(pcpi_mul_rdx_bit31_out    ),
+			.rdx_bit63_out(pcpi_mul_rdx_bit63_out    ),
 			.pcpi_valid(pcpi_valid     ),
 			.pcpi_insn (pcpi_insn      ),
 			.pcpi_rs1  (pcpi_rs1       ),
@@ -445,7 +440,7 @@ module picorv32 #(
 
 	assign mem_rdata_latched = COMPRESSED_ISA && mem_la_use_prefetched_high_word ? {16'bx, mem_16bit_buffer} :
 			COMPRESSED_ISA && mem_la_secondword ? {mem_rdata_latched_noshuffle[15:0], mem_16bit_buffer} :
-			COMPRESSED_ISA && mem_la_firstword ? {16'bx, mem_rdata_latched_noshuffle[31:16]} : mem_rdata_latched_noshuffle;
+			COMPRESSED_ISA && mem_la_firstword ? {16'bx, mem_rdata_latched_noshuffle[31:16]} : mem_rdata_latched_noshuffle;	
 
 	always @(posedge clk) begin
 		if (!resetn) begin
@@ -759,6 +754,22 @@ module picorv32 #(
 	`FORMAL_KEEP reg [31:0] dbg_rs2val;
 	`FORMAL_KEEP reg dbg_rs1val_valid;
 	`FORMAL_KEEP reg dbg_rs2val_valid;
+
+	if (PRIMARY_CORE) begin
+		assign mcompose_out = mcompose[3:0];
+		assign mcompose_ready_out = 1'b0;
+		assign mcompose_exec_out = is_composed_ready && mem_do_rinst && mem_done;
+		assign mcompose_instr_out = (decoder_trigger) ? mem_rdata_q : mem_rdata_latched;
+	end
+	if (SECONDARY_CORE) begin
+		assign mcompose_out = 4'b0;
+		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (!is_composed);
+		assign mcompose_exec_out = 1'b0;
+		assign mcompose_instr_out = 32'b0;
+	end
+
+	wire [31:0] instr_source = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
+	wire [31:0] instr_source_q = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_q;
 
 	always @* begin
 		new_ascii_instr = "";
@@ -1339,31 +1350,27 @@ module picorv32 #(
 
 	always @* begin
 
-		mcompose_left_carry_out = 3'b0;
+		mcompose_left_carry_out = 5'b0;
 		if (PRIMARY_CORE || SECONDARY_CORE) begin
-			if (is_sltiu_bltu_sltu)
+			if (is_sltiu_bltu_sltu) begin
 				if (mcompose_in - 1 == HART_ID)
 					mcompose_left_carry_out[0] = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
 				else
 					mcompose_left_carry_out[0] = reg_op1 < reg_op2;
-			else if (instr_any_mul) begin
-				mcompose_left_carry_out[0] = pcpi_mul_rs2_shift_out;
-				mcompose_left_carry_out[1] = pcpi_mul_rdx_shift_out;
-				mcompose_left_carry_out[2] = pcpi_mul_rs1_lsb_out;
+			end else if (instr_any_mul) begin
+				mcompose_left_carry_out[0] = pcpi_mul_rs1_lsb_out;
+				mcompose_left_carry_out[1] = pcpi_mul_rs2_bit31_out;
+				mcompose_left_carry_out[2] = pcpi_mul_rs2_bit63_out;
+				mcompose_left_carry_out[3] = pcpi_mul_rdx_bit31_out;
+				mcompose_left_carry_out[4] = pcpi_mul_rdx_bit63_out;
 			end else
 				mcompose_left_carry_out[0] = alu_out[32];
 		end
 
-		mcompose_right_carry_out = 1'b0;
-		if (is_composed_secondary) begin
-			if (is_sltiu_bltu_sltu) begin
-				// if (mcompose_in - 1 == HART_ID)
-				// 	mcompose_right_carry_out = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
-				// else
-				// 	mcompose_right_carry_out = mcompose_right_carry_in;
-			end else begin
-				mcompose_right_carry_out = pcpi_mul_rs1_shift_out;
-			end
+		mcompose_right_carry_out = 2'b0;
+		if (PRIMARY_CORE || SECONDARY_CORE) begin
+			mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
+			mcompose_right_carry_out[1] = pcpi_mul_rs1_bit32_out;
 		end
 
 		alu_out_0 = 'bx;
@@ -2378,14 +2385,20 @@ module picorv32_pcpi_mul #(
 	input clk, resetn,
 
 	input [3:0] mcompose,
-	input       rs1_shift_in,
-	input       rs2_shift_in,
-	input       rdx_shift_in,
+	input       rs1_bit31_in,
+	input       rs1_bit63_in,
+	input       rs2_bit0_in,
+	input       rs2_bit32_in,
+	input       rdx_bit0_in,
+	input       rdx_bit32_in,
 	input       rs1_lsb_in,
-	output reg  rs1_shift_out,
-	output reg  rs2_shift_out,
-	output reg  rdx_shift_out,
-	output reg  rs1_lsb_out,
+	output 	    rs1_bit0_out,
+	output      rs1_bit32_out,
+	output      rs2_bit31_out,
+	output reg  rs2_bit63_out,
+	output reg  rdx_bit31_out,
+	output reg  rdx_bit63_out,
+	output      rs1_lsb_out,
 
 	input             pcpi_valid,
 	input      [31:0] pcpi_insn,
@@ -2424,13 +2437,18 @@ module picorv32_pcpi_mul #(
 		pcpi_wait_q <= pcpi_wait;
 	end
 
-	reg [64:0] rs1, rs2, rd, rdx;
-	reg [64:0] next_rs1, next_rs2, this_rs2;
-	reg [64:0] next_rd, next_rdx, next_rdt;
+	reg [63:0] rs1, rs2, rd, rdx;
+	reg [63:0] next_rs1, next_rs2, this_rs2;
+	reg [63:0] next_rd, next_rdx, next_rdt;
 	reg [15:0] mul_counter;
 	reg mul_waiting;
 	reg mul_finish;
 	integer i, j;
+
+	assign rs1_lsb_out = (HART_ID == 0) ? rs1[0] : rs1_lsb_in;
+	assign rs1_bit0_out = (HART_ID == 0) ? rs1[32] : rs1[0];
+	assign rs1_bit32_out = rs1[32];
+	assign rs2_bit31_out = rs2[31];
 
 	// carry save accumulator
 	always @* begin
@@ -2438,8 +2456,6 @@ module picorv32_pcpi_mul #(
 		next_rdx = rdx;
 		next_rs1 = rs1;
 		next_rs2 = rs2;
-
-		rs1_lsb_out = (HART_ID == 0) ? rs1[0] : rs1_lsb_in;
 
 		for (i = 0; i < STEPS_AT_ONCE; i=i+1) begin
 			if (mcompose > HART_ID && HART_ID > 0)
@@ -2449,26 +2465,45 @@ module picorv32_pcpi_mul #(
 			if (CARRY_CHAIN == 0) begin
 				next_rdt = next_rd ^ next_rdx ^ this_rs2;
 				next_rdx = ((next_rd & next_rdx) | (next_rd & this_rs2) | (next_rdx & this_rs2));
-				rdx_shift_out = (instr_any_mulh ? next_rdx[63] : next_rdx[31]);
+				rdx_bit31_out = next_rdx[31];
+				rdx_bit63_out = (mcompose - 1 == HART_ID) ? next_rdx[31] : next_rdx[63];
 				next_rdx = next_rdx << 1;
-				next_rdx[0] = rdx_shift_in;
+
+				if (mcompose > HART_ID) begin
+					if (HART_ID > 0) next_rdx[0] = rdx_bit0_in;
+					next_rdx[32] = rdx_bit32_in;
+				end
+
 				next_rd = next_rdt;
 			end else begin
 				next_rdt = 0;
 				for (j = 0; j < 64; j = j + CARRY_CHAIN)
 					{next_rdt[j+CARRY_CHAIN-1], next_rd[j +: CARRY_CHAIN]} =
 							next_rd[j +: CARRY_CHAIN] + next_rdx[j +: CARRY_CHAIN] + this_rs2[j +: CARRY_CHAIN];
-				next_rdx = next_rdt << 1;
-				rdx_shift_out = (instr_any_mulh ? next_rdx[64] : next_rdx[32]);
-				next_rdx[0] = rdx_shift_in;
-			end
-			rs1_shift_out = next_rs1[0];
-			next_rs1 = next_rs1 >> 1;
-			next_rs1[instr_any_mulh ? 63 : 31] = rs1_shift_in;
+				next_rdx = next_rdt;
+				rdx_bit31_out = next_rdx[31];
+				rdx_bit63_out = (mcompose - 1 == HART_ID) ? next_rdx[31] : next_rdx[63];
+				next_rdx = next_rdx << 1;
 
-			rs2_shift_out = (instr_any_mulh ? next_rs2[63] : next_rs2[31]);
+				if (mcompose > HART_ID) begin
+					if (HART_ID > 0) next_rdx[0] = rdx_bit0_in;
+					next_rdx[32] = rdx_bit32_in;
+				end
+			end
+			next_rs1 = next_rs1 >> 1;
+
+			if (mcompose > HART_ID) begin
+				next_rs1[31] = rs1_bit31_in;
+				if (mcompose - 1 > HART_ID) next_rs1[63] = rs1_bit63_in;
+			end
+			
 			next_rs2 = next_rs2 << 1;
-			next_rs2[0] = rs2_shift_in;
+			rs2_bit63_out = (mcompose - 1 == HART_ID) ? rs2[31] : rs2[63];
+
+			if (mcompose > HART_ID) begin
+				if (HART_ID > 0) next_rs2[0] = rs2_bit0_in;
+				next_rs2[32] = rs2_bit32_in;
+			end
 		end
 	end
 
@@ -2491,7 +2526,7 @@ module picorv32_pcpi_mul #(
 			rd <= 0;
 			rdx <= 0;
 			if (mcompose > 0)
-				mul_counter <= (instr_any_mulh ? ((64 * mcompose) - 1 - STEPS_AT_ONCE) : ((32 * mcompose) - 1 - STEPS_AT_ONCE));
+				mul_counter <= (instr_any_mulh ? (mcompose * 64) - 1 - STEPS_AT_ONCE : (mcompose * 32) - 1 - STEPS_AT_ONCE);
 			else
 				mul_counter <= (instr_any_mulh ? 63 - STEPS_AT_ONCE : 31 - STEPS_AT_ONCE);
 			mul_waiting <= !mul_start;

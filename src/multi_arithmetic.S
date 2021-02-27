@@ -24,7 +24,7 @@
 #define b_addr_end     t5
 #define res_addr       a2
 #define res_addr_temp  t6
-#define temp           a4
+#define temp           a6
 #define carry          a5
 #define temp_carry     a7
 #define bytes_per_word a3
@@ -138,7 +138,7 @@ multi_mult_comp:
 zero_loop_comp:
     beq  res_addr_temp, temp, b_loop_comp
     sw   zero, 0(res_addr_temp)
-    addi res_addr_temp, res_addr_temp, 4
+    add  res_addr_temp, res_addr_temp, bytes_per_word
     j    zero_loop_comp
 b_loop_comp:
     beq  b_addr, b_addr_end, b_loop_end_comp

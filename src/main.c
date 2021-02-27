@@ -43,7 +43,7 @@ void test_xor() {
         print_string("multi_xor failed!\n");
     }
 
-    memset(res, 0, NUM_BYTES);
+    memset(res, 0x55, NUM_BYTES);
 
     print_int(NUM_BITS);
     print_string("-bit composed XOR: ");
@@ -63,7 +63,7 @@ void test_add() {
         print_string("multi_add failed!\n");
     }
 
-    memset(res, 0, NUM_BYTES);
+    memset(res, 0x55, NUM_BYTES);
 
     print_int(NUM_BITS);
     print_string("-bit composed addition: ");
@@ -93,7 +93,7 @@ void test_multiply() {
         print_string("multi_mult failed!\n");
     }
 
-    memset(res, 0, NUM_BYTES * 2);
+    memset(res, 0x55, NUM_BYTES * 2);
 
     print_int(NUM_BITS);
     print_string("-bit composed multiplication: ");
@@ -101,7 +101,7 @@ void test_multiply() {
     set_mcompose(0);
     multi_mult_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
 
-    if (!check_result(res, a_times_b, NUM_BYTES)) {
+    if (!check_result(res, a_times_b, NUM_BYTES * 2)) {
         print_string("composed multi_mult failed!\n");
     }
 }

@@ -63,8 +63,12 @@ module soc #(
 	wire [N_CORES*4 - 1 : 0] dummy;
 	wire [N_CORES-1 : 0] mcompose_ready;
 	assign mcompose_ready[N_CORES-1] = 1'b1;
-	wire [N_CORES*3-1 : 0] mcompose_left_carry;
-	wire [N_CORES-1 : 0] mcompose_right_carry;
+
+	localparam LEFT_CARRY_BITS = 5;
+	localparam RIGHT_CARRY_BITS = 2;
+
+	wire [N_CORES*LEFT_CARRY_BITS-1 : 0] mcompose_left_carry;
+	wire [N_CORES*RIGHT_CARRY_BITS-1 : 0] mcompose_right_carry;
 
 	// -------------------------------
 	// PicoRV32 Cores
@@ -96,10 +100,10 @@ module soc #(
 		.mem_rdata         (mem_rdata   [31: 0]),
 		.mcompose_out            (mcompose),
 		.mcompose_ready_in       (mcompose_ready[0]),
-		.mcompose_left_carry_out (mcompose_left_carry[2:0]),
-		.mcompose_left_carry_in  (mcompose_left_carry[N_CORES*3 - 1 -: 3]),
-		.mcompose_right_carry_out(mcompose_right_carry[N_CORES-1]),
-		.mcompose_right_carry_in (mcompose_right_carry[0]),
+		.mcompose_left_carry_out (mcompose_left_carry[LEFT_CARRY_BITS-1:0]),
+		.mcompose_left_carry_in  (mcompose_left_carry[N_CORES*LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
+		.mcompose_right_carry_out(mcompose_right_carry[N_CORES*RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
+		.mcompose_right_carry_in (mcompose_right_carry[RIGHT_CARRY_BITS-1:0]),
 		.mcompose_instr_out      (mcompose_instr),
 		.mcompose_exec_out       (mcompose_exec)
 	);
@@ -136,11 +140,11 @@ module soc #(
 				.mem_rdata         (mem_rdata    [32*core_num + 31 -: 32]),
 				.mcompose_in             (mcompose),
 				.mcompose_ready_in       ((core_num == N_CORES - 1) ? 1'b1 : mcompose_ready[core_num]),
-				.mcompose_left_carry_in  (mcompose_left_carry[3*(core_num - 1) + 2 -: 3]),
-				.mcompose_right_carry_in (mcompose_right_carry[core_num]),
+				.mcompose_left_carry_in  (mcompose_left_carry[LEFT_CARRY_BITS*(core_num - 1) + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
+				.mcompose_right_carry_in (mcompose_right_carry[RIGHT_CARRY_BITS*core_num + RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
 				.mcompose_ready_out      (mcompose_ready[core_num - 1]),
-				.mcompose_left_carry_out (mcompose_left_carry[3*core_num + 2 -: 3]),
-				.mcompose_right_carry_out(mcompose_right_carry[core_num - 1]),
+				.mcompose_left_carry_out (mcompose_left_carry[LEFT_CARRY_BITS*core_num + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
+				.mcompose_right_carry_out(mcompose_right_carry[RIGHT_CARRY_BITS*(core_num - 1) + RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
 				.mcompose_instr_in       (mcompose_instr),
 		   		.mcompose_exec_in        (mcompose_exec)
 			);
