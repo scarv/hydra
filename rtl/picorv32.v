@@ -127,8 +127,8 @@ module picorv32 #(
 	output reg [31:0] eoi,
 
 	// Compose signals
-	output     [ 3:0] mcompose_out,
-	input      [ 3:0] mcompose_in,
+	output     [ 7:0] mcompose_out,
+	input      [ 7:0] mcompose_in,
 	output 			  mcompose_ready_out,
 	input             mcompose_ready_in,
 	output     [31:0] mcompose_instr_out,
@@ -222,7 +222,7 @@ module picorv32 #(
 	reg [31:0] irq_pending;
 	reg [31:0] timer;
 
-	reg [31:0] mcompose;
+	reg [ 7:0] mcompose;
 	reg        mcompose_ready;
 	reg        mcompose_decoder_trigger;
 
@@ -756,13 +756,13 @@ module picorv32 #(
 	`FORMAL_KEEP reg dbg_rs2val_valid;
 
 	if (PRIMARY_CORE) begin
-		assign mcompose_out = mcompose[3:0];
+		assign mcompose_out = mcompose;
 		assign mcompose_ready_out = 1'b0;
 		assign mcompose_exec_out = is_composed_ready && mem_do_rinst && mem_done;
 		assign mcompose_instr_out = (decoder_trigger) ? mem_rdata_q : mem_rdata_latched;
 	end
 	if (SECONDARY_CORE) begin
-		assign mcompose_out = 4'b0;
+		assign mcompose_out = 0;
 		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (!is_composed);
 		assign mcompose_exec_out = 1'b0;
 		assign mcompose_instr_out = 32'b0;
@@ -1364,7 +1364,7 @@ module picorv32 #(
 				mcompose_left_carry_out[3] = pcpi_mul_rdx_bit31_out;
 				mcompose_left_carry_out[4] = pcpi_mul_rdx_bit63_out;
 			end else
-				mcompose_left_carry_out[0] = alu_out[32];
+				mcompose_left_carry_out[0] = alu_add_sub[32];
 		end
 
 		mcompose_right_carry_out = 2'b0;
@@ -2384,7 +2384,7 @@ module picorv32_pcpi_mul #(
 ) (
 	input clk, resetn,
 
-	input [3:0] mcompose,
+	input [7:0] mcompose,
 	input       rs1_bit31_in,
 	input       rs1_bit63_in,
 	input       rs2_bit0_in,
@@ -2395,7 +2395,7 @@ module picorv32_pcpi_mul #(
 	output 	    rs1_bit0_out,
 	output      rs1_bit32_out,
 	output      rs2_bit31_out,
-	output reg  rs2_bit63_out,
+	output      rs2_bit63_out,
 	output reg  rdx_bit31_out,
 	output reg  rdx_bit63_out,
 	output      rs1_lsb_out,
@@ -2449,6 +2449,7 @@ module picorv32_pcpi_mul #(
 	assign rs1_bit0_out = (HART_ID == 0) ? rs1[32] : rs1[0];
 	assign rs1_bit32_out = rs1[32];
 	assign rs2_bit31_out = rs2[31];
+	assign rs2_bit63_out = (mcompose - 1 == HART_ID) ? rs2[31] : rs2[63];
 
 	// carry save accumulator
 	always @* begin
@@ -2498,7 +2499,6 @@ module picorv32_pcpi_mul #(
 			end
 			
 			next_rs2 = next_rs2 << 1;
-			rs2_bit63_out = (mcompose - 1 == HART_ID) ? rs2[31] : rs2[63];
 
 			if (mcompose > HART_ID) begin
 				if (HART_ID > 0) next_rs2[0] = rs2_bit0_in;

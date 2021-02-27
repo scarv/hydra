@@ -31,6 +31,16 @@ $(BUILD_DIR)/firmware.hex: $(BUILD_DIR)/firmware.bin
 	python3 util/makehex.py $< 1792 > $@
 
 ## ------------------------------
+## simulation: iverilog
+simulate: $(BUILD_DIR)/firmware.hex
+	iverilog -I $(RTL_DIR) $(RTL_DIR)/testbench.v && ./a.out && rm a.out
+
+## ------------------------------
+## linting: verilator
+lint:
+	verilator -I$(RTL_DIR) -Wall --lint-only --top-module top $(RTL_DIR)/icefun.v
+
+## ------------------------------
 ## iceFUN flow: synth/p&r/bitstream
 
 $(BUILD_DIR)/icefun.json: $(RTL_DIR)/*.v $(BUILD_DIR)/firmware.hex
@@ -46,22 +56,22 @@ $(BUILD_DIR)/icefun.bin: $(BUILD_DIR)/icefun.asc
 ## ARTY flow: synth/pack/place/route/fasm/bitstream
 
 $(BUILD_DIR)/top.eblif: $(RTL_DIR)/*.v $(BUILD_DIR)/firmware.hex $(RTL_DIR)/arty.xdc
-	cd build && symbiflow_synth -t top -v ../rtl/arty.v -d artix7 -p xc7a35tcsg324-1 -x ../$(RTL_DIR)/arty.xdc
+	cd $(BUILD_DIR) && symbiflow_synth -t top -v ../rtl/arty.v -d artix7 -p xc7a35tcsg324-1 -x ../$(RTL_DIR)/arty.xdc
 
 $(BUILD_DIR)/top.net: $(BUILD_DIR)/top.eblif
-	cd build && symbiflow_pack -e top.eblif -d xc7a50t_test
+	cd $(BUILD_DIR) && symbiflow_pack -e top.eblif -d xc7a50t_test
 
 $(BUILD_DIR)/top.place: $(BUILD_DIR)/top.net
-	cd build && symbiflow_place -e top.eblif -d xc7a50t_test -n top.net -P xc7a35tcsg324-1
+	cd $(BUILD_DIR) && symbiflow_place -e top.eblif -d xc7a50t_test -n top.net -P xc7a35tcsg324-1
 
 $(BUILD_DIR)/top.route: $(BUILD_DIR)/top.place
-	cd build && symbiflow_route -e top.eblif -d xc7a50t_test
+	cd $(BUILD_DIR) && symbiflow_route -e top.eblif -d xc7a50t_test
 
 $(BUILD_DIR)/top.fasm: $(BUILD_DIR)/top.route
-	cd build && symbiflow_write_fasm -e top.eblif -d xc7a50t_test
+	cd $(BUILD_DIR) && symbiflow_write_fasm -e top.eblif -d xc7a50t_test
 
 $(BUILD_DIR)/arty.bit: $(BUILD_DIR)/top.fasm
-	cd build && symbiflow_write_bitstream -d artix7 -f top.fasm -p xc7a35tcsg324-1 -b arty.bit
+	cd $(BUILD_DIR) && symbiflow_write_bitstream -d artix7 -f top.fasm -p xc7a35tcsg324-1 -b arty.bit
 
 ## ------
 ## el fin
@@ -69,4 +79,4 @@ $(BUILD_DIR)/arty.bit: $(BUILD_DIR)/top.fasm
 clean:
 	@cd $(BUILD_DIR) && rm -f *.bin *.hex *.elf *.asc *.json *.log *.rpt *.bit *.fasm *.v *.ilang *.net *.sdc *.eblif *.place *.ioplace *.route *.post_routing
 
-.PHONY: clean
+.PHONY: clean simulate

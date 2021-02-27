@@ -57,7 +57,7 @@ module soc #(
 	reg [N_CORES_BITS-1:0] mem_arb_counter = 0;
 	reg [N_CORES_BITS-1:0] mem_la_arb_counter = 1;
 
-	wire [ 3:0] mcompose;
+	wire [ 7:0] mcompose;
 	wire        mcompose_exec;
 	wire [31:0] mcompose_instr;
 	wire [N_CORES*4 - 1 : 0] dummy;
@@ -190,7 +190,7 @@ module soc #(
         tx_send   <= 0;
 
 		dbg[2:0] <= mcompose_ready;
-		dbg[6:3] <= mcompose;
+		dbg[6:3] <= mcompose[3:0];
 
 		if (mcompose_exec)
 			instr_dbg <= mcompose_instr;

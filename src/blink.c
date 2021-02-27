@@ -9,7 +9,7 @@ void output(uint8_t c, int led_num)
 
 void blink(int led_num)
 {
-	int led_state = 0;
+	int led_state = 1;
 	for (uint32_t counter = 0;; counter++) {
 		asm volatile ("" : : "r"(counter));
 		if ((counter & ~(~0 << COUNTER_BITS)) == 0) {
