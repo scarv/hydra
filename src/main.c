@@ -7,7 +7,7 @@
 #define NUM_BYTES (NUM_WORDS << 2)
 #define NUM_BITS  (NUM_WORDS << 5)
 
-#define NUM_CORES 2
+#define NUM_CORES 4
 
 unsigned int a[NUM_WORDS] = {0xdeadbeef, 0xab43032b};
 unsigned int b[NUM_WORDS] = {0xdd00d420, 0x9beeff00};

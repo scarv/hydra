@@ -11,7 +11,7 @@ module soc #(
     output uart_tx
 );
 
-	localparam N_CORES = 2;
+	localparam N_CORES = 4;
 	localparam N_CORES_BITS = (N_CORES == 4) ? 2 : 1;
 
 	localparam M_EXTENSION = 1;

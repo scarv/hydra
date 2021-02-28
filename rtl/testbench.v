@@ -10,7 +10,7 @@ module top;
     always #1 clk = !clk;
 
 	soc #(
-		.CLK_MHZ(1)
+		.CLK_MHZ(0)
 	) composed_soc (
 		.clk(clk),
 		.leds(leds),
@@ -24,6 +24,7 @@ module top;
 
     initial begin
         wait(composed_soc.resetn == 1);
+        $display("Reset finished, UART output follows:\n");
         wait(leds[0] == 1);
         $finish;
     end

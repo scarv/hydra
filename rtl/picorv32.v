@@ -739,8 +739,8 @@ module picorv32 #(
 			instr_rdcycle, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_rdcycleh, instr_rdinstr, instr_rdinstrh,
 			instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer};
 
-	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh_rdmhartid;
-	assign is_rdcycle_rdcycleh_rdinstr_rdinstrh_rdmhartid = |{instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid};
+	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh;
+	assign is_rdcycle_rdcycleh_rdinstr_rdinstrh = |{instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh};
 
 	wire instr_any_mul = |{instr_mul, instr_mulh, instr_mulhsu, instr_mulhu};
 
@@ -1523,7 +1523,7 @@ module picorv32 #(
 	end
 `endif
 
-	assign launch_next_insn = cpu_state == cpu_state_fetch && decoder_trigger && (!ENABLE_IRQ || irq_delay || irq_active || !(irq_pending & ~irq_mask));
+	assign launch_next_insn = ((cpu_state == cpu_state_fetch && decoder_trigger) || (cpu_state == cpu_state_composed && mcompose_decoder_trigger)) && (!ENABLE_IRQ || irq_delay || irq_active || !(irq_pending & ~irq_mask));
 
 	always @(posedge clk) begin
 		trap <= 0;
@@ -1569,7 +1569,7 @@ module picorv32 #(
 			timer <= timer - 1;
 		end
 
-		decoder_trigger <= mem_do_rinst && mem_done;
+		decoder_trigger <= mem_do_rinst && mem_done && !(SECONDARY_CORE && mcompose_ready);
 		decoder_trigger_q <= decoder_trigger;
 		decoder_pseudo_trigger <= 0;
 		decoder_pseudo_trigger_q <= decoder_pseudo_trigger;
@@ -1637,7 +1637,7 @@ module picorv32 #(
 						if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 					end
 					mem_do_rinst <= 0;
-					mem_do_prefetch <= 0;
+					mem_do_prefetch <= !instr_jalr && !instr_retirq;
 					cpu_state <= cpu_state_ld_rs1;
 				end
 			end
@@ -1779,7 +1779,7 @@ module picorv32 #(
 								cpu_state <= cpu_state_trap;
 						end
 					end
-					(ENABLE_COUNTERS || ENABLE_MHARTID) && is_rdcycle_rdcycleh_rdinstr_rdinstrh_rdmhartid: begin
+					(ENABLE_COUNTERS && is_rdcycle_rdcycleh_rdinstr_rdinstrh) || (ENABLE_MHARTID && instr_rdmhartid): begin
 						(* parallel_case, full_case *)
 						case (1'b1)
 							instr_rdcycle && ENABLE_COUNTERS:

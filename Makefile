@@ -33,7 +33,7 @@ $(BUILD_DIR)/firmware.hex: $(BUILD_DIR)/firmware.bin
 ## ------------------------------
 ## simulation: iverilog
 simulate: $(BUILD_DIR)/firmware.hex
-	iverilog -I $(RTL_DIR) $(RTL_DIR)/testbench.v && ./a.out && rm a.out
+	iverilog -g2005-sv -I $(RTL_DIR) $(RTL_DIR)/testbench.v && ./a.out && rm a.out
 
 ## ------------------------------
 ## linting: verilator
