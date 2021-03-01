@@ -33,8 +33,9 @@ When an instruction is fetched on the primary core, it outputs the instruction
 to the secondary cores so they can execute it in parallel. Specifically,
 it presents the instruction on the `mcompose_instr` bus and outputs a pulse on
 `mcompose_exec`, triggering the other cores to execute that instruction. The
-carry signals between cores allow addition and shift instructions to function
-correctly across the wide datapath.
+`left_carry` and `right_carry` buses between cores allow various signals to be
+sent during instructions, allowing arithmetic, bit shifts and other such
+operations to function correctly across the wide datapath.
 
 After they are done, the primary core writes **0** to `mcompose`, causing
 cores #1 and #2 to resume normal execution.
