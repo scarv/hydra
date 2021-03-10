@@ -50,6 +50,8 @@
   `define assert(assert_expr) empty_statement
 `endif
 
+`define assert(assert_expr) assert(assert_expr)
+
 // uncomment this for register file in extra module
 // `define PICORV32_REGS picorv32_regs
 
@@ -227,7 +229,7 @@ module picorv32 #(
 	reg        mcompose_decoder_trigger;
 
 	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0);
-	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_in > HART_ID);
+	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready);
 	wire       is_composed = is_composed_primary || is_composed_secondary;
 	wire       is_composed_ready = is_composed_primary && mcompose_ready_in;
 
@@ -763,7 +765,7 @@ module picorv32 #(
 	end
 	if (SECONDARY_CORE) begin
 		assign mcompose_out = 0;
-		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (!is_composed);
+		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (mcompose_in <= HART_ID);
 		assign mcompose_exec_out = 1'b0;
 		assign mcompose_instr_out = 32'b0;
 	end
@@ -939,7 +941,7 @@ module picorv32 #(
 		is_lbu_lhu_lw <= |{instr_lbu, instr_lhu, instr_lw};
 		is_compare <= |{is_beq_bne_blt_bge_bltu_bgeu, instr_slti, instr_slt, instr_sltiu, instr_sltu};
 
-		if ((mem_do_rinst && mem_done) || (SECONDARY_CORE && mcompose_exec_in && mcompose_ready)) begin
+		if ((mem_do_rinst && mem_done) || (is_composed_secondary && mcompose_exec_in)) begin
 			instr_lui     <= instr_source[6:0] == 7'b0110111;
 			instr_auipc   <= instr_source[6:0] == 7'b0010111;
 			instr_jal     <= instr_source[6:0] == 7'b1101111;
@@ -1262,7 +1264,7 @@ module picorv32 #(
 	localparam cpu_state_ldmem     = 9'b000000010;
 	localparam cpu_state_composed  = 9'b000000001;
 
-	wire [8:0] cpu_state_fetch_or_composed = (SECONDARY_CORE && mcompose_ready) ? cpu_state_composed : cpu_state_fetch;
+	wire [8:0] cpu_state_fetch_or_composed = is_composed_secondary ? cpu_state_composed : cpu_state_fetch;
 
 	reg [8:0] cpu_state;
 	reg [1:0] irq_state;
@@ -1314,7 +1316,7 @@ module picorv32 #(
 
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
-			if (SECONDARY_CORE && mcompose_ready)
+			if (is_composed_secondary)
 				alu_add_sub <= instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
@@ -1331,7 +1333,7 @@ module picorv32 #(
 		end
 	end else begin
 		always @* begin
-			if (SECONDARY_CORE && mcompose_ready)
+			if (is_composed_secondary)
 				alu_add_sub = instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
@@ -1569,13 +1571,13 @@ module picorv32 #(
 			timer <= timer - 1;
 		end
 
-		decoder_trigger <= mem_do_rinst && mem_done && !(SECONDARY_CORE && mcompose_ready);
+		decoder_trigger <= mem_do_rinst && mem_done && !is_composed_secondary;
 		decoder_trigger_q <= decoder_trigger;
 		decoder_pseudo_trigger <= 0;
 		decoder_pseudo_trigger_q <= decoder_pseudo_trigger;
 		do_waitirq <= 0;
 
-		mcompose_decoder_trigger <= (SECONDARY_CORE && mcompose_ready) ? mcompose_exec_in : 0;
+		mcompose_decoder_trigger <= is_composed_secondary ? mcompose_exec_in : 0;
 		
 		trace_valid <= 0;
 
