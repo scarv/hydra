@@ -942,6 +942,7 @@ module picorv32 #(
 		is_compare <= |{is_beq_bne_blt_bge_bltu_bgeu, instr_slti, instr_slt, instr_sltiu, instr_sltu};
 
 		if ((mem_do_rinst && mem_done) || (is_composed_secondary && mcompose_exec_in)) begin
+			if (is_composed_secondary) `assert(!(mem_do_rinst && mem_done));
 			instr_lui     <= instr_source[6:0] == 7'b0110111;
 			instr_auipc   <= instr_source[6:0] == 7'b0010111;
 			instr_jal     <= instr_source[6:0] == 7'b1101111;
@@ -1113,6 +1114,7 @@ module picorv32 #(
 		end
 
 		if ((decoder_trigger && !decoder_pseudo_trigger) || mcompose_decoder_trigger) begin
+			if (is_composed_secondary) `assert(!decoder_trigger);
 			pcpi_insn <= WITH_PCPI ? instr_source_q : 'bx;
 
 			instr_beq   <= is_beq_bne_blt_bge_bltu_bgeu && instr_source_q[14:12] == 3'b000;
@@ -1623,6 +1625,9 @@ module picorv32 #(
 			end
 
 			cpu_state_composed: begin
+				mem_do_rinst <= 0;
+				mem_do_prefetch <= 0;
+				mem_state <= 0;
 				latched_store <= 0;
 				latched_stalu <= 0;
 				latched_branch <= 0;
@@ -1638,8 +1643,6 @@ module picorv32 #(
 						count_instr <= count_instr + 1;
 						if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 					end
-					mem_do_rinst <= 0;
-					mem_do_prefetch <= !instr_jalr && !instr_retirq;
 					cpu_state <= cpu_state_ld_rs1;
 				end
 			end
@@ -1754,7 +1757,7 @@ module picorv32 #(
 								dbg_rs2val <= cpuregs_rs2;
 								dbg_rs2val_valid <= 1;
 								if (pcpi_int_ready) begin
-									mem_do_rinst <= 1;
+									mem_do_rinst <= mem_do_prefetch;
 									pcpi_valid <= 0;
 									reg_out <= pcpi_int_rd;
 									latched_store <= pcpi_int_wr;
@@ -1884,7 +1887,7 @@ module picorv32 #(
 						dbg_rs1val <= cpuregs_rs1;
 						dbg_rs1val_valid <= 1;
 						cpu_state <= cpu_state_ldmem;
-						mem_do_rinst <= 1;
+						mem_do_rinst <= mem_do_prefetch;
 					end
 					is_slli_srli_srai && !BARREL_SHIFTER: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -1921,7 +1924,7 @@ module picorv32 #(
 							case (1'b1)
 								is_sb_sh_sw: begin
 									cpu_state <= cpu_state_stmem;
-									mem_do_rinst <= 1;
+									mem_do_rinst <= mem_do_prefetch;
 								end
 								is_sll_srl_sra && !BARREL_SHIFTER: begin
 									cpu_state <= cpu_state_shift;
@@ -1953,7 +1956,7 @@ module picorv32 #(
 					WITH_PCPI && instr_trap: begin
 						pcpi_valid <= 1;
 						if (pcpi_int_ready) begin
-							mem_do_rinst <= 1;
+							mem_do_rinst <= mem_do_prefetch;
 							pcpi_valid <= 0;
 							reg_out <= pcpi_int_rd;
 							latched_store <= pcpi_int_wr;
@@ -1971,7 +1974,7 @@ module picorv32 #(
 					end
 					is_sb_sh_sw: begin
 						cpu_state <= cpu_state_stmem;
-						mem_do_rinst <= 1;
+						mem_do_rinst <= mem_do_prefetch;
 					end
 					is_sll_srl_sra && !BARREL_SHIFTER: begin
 						cpu_state <= cpu_state_shift;
