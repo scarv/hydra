@@ -190,14 +190,13 @@ b_loop_end_comp:
 multi_add_comp:
     li   carry, 0
     csrr hart_id, mhartid // Read HARTID
+    bnez hart_id, multi_add_comp_loop_sec
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
-    bnez hart_id, multi_add_comp_loop_sec
+    csrw mcompose, n_cores
 multi_add_comp_loop:
     beq  a_addr, a_addr_end, multi_add_comp_end
-    // compose
-    csrw mcompose, n_cores
     lw   a_value, 0(a_addr)
     lw   b_value, 0(b_addr)
     add  res_value, a_value, carry
@@ -209,19 +208,12 @@ multi_add_comp_loop:
     add a_addr, a_addr, bytes_per_word
     add b_addr, b_addr, bytes_per_word
     add res_addr, res_addr, bytes_per_word
-    csrw mcompose, zero
-    // uncompose
     j    multi_add_comp_loop
 multi_add_comp_loop_sec:
-    beq  a_addr, a_addr_end, multi_add_comp_end
-    // compose
+    li   bytes_per_word, 0
     csrw mcompose, n_cores
-    // uncompose
-    //add a_addr, a_addr, bytes_per_word
-    //add b_addr, b_addr, bytes_per_word
-    //add res_addr, res_addr, bytes_per_word
-    j   multi_add_comp_loop_sec
 multi_add_comp_end:
+    csrw mcompose, zero
     ret
 
 // extern void multi_xor(const void *a, const void *b, void *res, int n_words);
@@ -244,39 +236,23 @@ multi_xor_end:
 // extern void multi_xor_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
 multi_xor_comp:
     csrr hart_id, mhartid // Read HARTID
-    slli hart_id, hart_id, 2
-    add a_addr, a_addr, hart_id
-    add b_addr, b_addr, hart_id
-    add res_addr, res_addr, hart_id
+    bnez hart_id, multi_xor_comp_loop_sec
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
-    bnez hart_id, multi_xor_comp_loop_sec
+    csrw mcompose, n_cores
 multi_xor_comp_loop:
     beq  a_addr, a_addr_end, multi_xor_comp_end
     lw   a_value, 0(a_addr)
     lw   b_value, 0(b_addr)
-    // compose
-    csrw mcompose, n_cores
     xor  res_value, a_value, b_value
-    csrw mcompose, zero
-    // uncompose
     sw   res_value, 0(res_addr)
     add a_addr, a_addr, bytes_per_word
     add b_addr, b_addr, bytes_per_word
     add res_addr, res_addr, bytes_per_word
     j    multi_xor_comp_loop
 multi_xor_comp_loop_sec:
-    beq  a_addr, a_addr_end, multi_xor_comp_end
-    lw   a_value, 0(a_addr)
-    lw   b_value, 0(b_addr)
-    // compose
     csrw mcompose, n_cores
-    // uncompose
-    sw   res_value, 0(res_addr)
-    add a_addr, a_addr, bytes_per_word
-    add b_addr, b_addr, bytes_per_word
-    add res_addr, res_addr, bytes_per_word
-    j    multi_xor_comp_loop_sec
 multi_xor_comp_end:
+    csrw mcompose, zero
     ret

@@ -747,6 +747,9 @@ module picorv32 #(
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh;
 	assign is_rdcycle_rdcycleh_rdinstr_rdinstrh = |{instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh};
 
+	wire is_uncomposable;
+	assign is_uncomposable = |{is_beq_bne_blt_bge_bltu_bgeu, instr_jalr, instr_jal};
+
 	wire instr_any_mul = |{instr_mul, instr_mulh, instr_mulhsu, instr_mulhu};
 
 	reg [63:0] new_ascii_instr;
@@ -763,7 +766,7 @@ module picorv32 #(
 	if (PRIMARY_CORE) begin
 		assign mcompose_out = mcompose;
 		assign mcompose_right_ready_out = 0;
-		assign mcompose_left_ready_out = (mcompose > 0) && (cpu_state == cpu_state_fetch);
+		assign mcompose_left_ready_out = (mcompose > 0) && (cpu_state == cpu_state_fetch) && (decoder_trigger);
 		assign mcompose_exec_out = (mcompose > 0) && mem_do_rinst && mem_done;
 	end
 	if (SECONDARY_CORE) begin
@@ -848,6 +851,7 @@ module picorv32 #(
 	reg dbg_next;
 
 	wire launch_next_insn;
+	wire launch_next_insn_composed;
 	reg dbg_valid_insn;
 
 	reg [63:0] cached_ascii_instr;
@@ -1540,7 +1544,8 @@ module picorv32 #(
 	end
 `endif
 
-	assign launch_next_insn = ((cpu_state == cpu_state_fetch && decoder_trigger) || (cpu_state == cpu_state_composed && mcompose_decoder_trigger && mcompose_left_ready_in && mcompose_right_ready_in)) && (!ENABLE_IRQ || irq_delay || irq_active || !(irq_pending & ~irq_mask));
+	assign launch_next_insn_composed = (cpu_state == cpu_state_composed && mcompose_launch_insn && mcompose_left_ready_in && mcompose_right_ready_in && !is_uncomposable);
+	assign launch_next_insn = ((cpu_state == cpu_state_fetch && decoder_trigger) || launch_next_insn_composed) && (!ENABLE_IRQ || irq_delay || irq_active || !(irq_pending & ~irq_mask));
 
 	always @(posedge clk) begin
 		trap <= 0;
@@ -1656,13 +1661,15 @@ module picorv32 #(
 
 				if (mcompose_right_ready_in && mcompose_left_ready_in) begin
 					if (mcompose_launch_insn) begin
-						`debug($display("-- %-0t", $time);)
-						if (ENABLE_COUNTERS) begin
-							count_instr <= count_instr + 1;
-							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
-						end
-						cpu_state <= cpu_state_ld_rs1;
 						mcompose_launch_insn <= 0;
+						if (!is_uncomposable) begin
+							`debug($display("-- %-0t", $time);)
+							if (ENABLE_COUNTERS) begin
+								count_instr <= count_instr + 1;
+								if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
+							end
+							cpu_state <= cpu_state_ld_rs1;
+						end
 					end
 				end
 			end

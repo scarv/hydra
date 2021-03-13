@@ -22,13 +22,13 @@ Implemented: `MUL, MULHU`
 
 `LW, LH[U], LB[U], SW, SH, SB`
 
-Implemented: `NONE`
+Implemented: `LW, SW`
 
 ## Control Flow Instructions
 
 `JAL, JALR, BEQ, BNE, BLT[U], BGE[U]`
 
-Implemented: `NONE`
+Implemented: `JAL, JALR`
 
 ## Other Instructions
 
