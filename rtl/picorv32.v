@@ -131,8 +131,10 @@ module picorv32 #(
 	// Compose signals
 	output     [ 7:0] mcompose_out,
 	input      [ 7:0] mcompose_in,
-	output 			  mcompose_ready_out,
-	input             mcompose_ready_in,
+	output 			  mcompose_right_ready_out,
+	input             mcompose_right_ready_in,
+	output 			  mcompose_left_ready_out,
+	input             mcompose_left_ready_in,
 	output     [31:0] mcompose_instr_out,
 	input      [31:0] mcompose_instr_in,
 	output 			  mcompose_exec_out,
@@ -227,11 +229,12 @@ module picorv32 #(
 	reg [ 7:0] mcompose;
 	reg        mcompose_ready;
 	reg        mcompose_decoder_trigger;
+	reg        mcompose_pseudo_trigger;
 
 	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0);
 	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready);
 	wire       is_composed = is_composed_primary || is_composed_secondary;
-	wire       is_composed_ready = is_composed_primary && mcompose_ready_in;
+	wire       is_composed_ready = is_composed_primary && mcompose_right_ready_in;
 
 `ifndef PICORV32_REGS
 	reg [31:0] cpuregs [0:regfile_size-1];
@@ -759,13 +762,15 @@ module picorv32 #(
 
 	if (PRIMARY_CORE) begin
 		assign mcompose_out = mcompose;
-		assign mcompose_ready_out = 1'b0;
-		assign mcompose_exec_out = is_composed_ready && mem_do_rinst && mem_done;
+		assign mcompose_right_ready_out = 0;
+		assign mcompose_left_ready_out = (mcompose > 0) && (cpu_state == cpu_state_fetch);
+		assign mcompose_exec_out = (mcompose > 0) && mem_do_rinst && mem_done;
 		assign mcompose_instr_out = (decoder_trigger) ? mem_rdata_q : mem_rdata_latched;
 	end
 	if (SECONDARY_CORE) begin
 		assign mcompose_out = 0;
-		assign mcompose_ready_out = (mcompose_ready && mcompose_ready_in) || (mcompose_in <= HART_ID);
+		assign mcompose_left_ready_out = (mcompose_ready && mcompose_left_ready_in && cpu_state == cpu_state_composed) || (mcompose_in <= HART_ID);
+		assign mcompose_right_ready_out = (mcompose_ready && mcompose_right_ready_in && cpu_state == cpu_state_composed) || (mcompose_in <= HART_ID);
 		assign mcompose_exec_out = 1'b0;
 		assign mcompose_instr_out = 32'b0;
 	end
@@ -1113,7 +1118,7 @@ module picorv32 #(
 			end
 		end
 
-		if ((decoder_trigger && !decoder_pseudo_trigger) || mcompose_decoder_trigger) begin
+		if ((decoder_trigger && !decoder_pseudo_trigger) || (mcompose_decoder_trigger && !mcompose_pseudo_trigger)) begin
 			if (is_composed_secondary) `assert(!decoder_trigger);
 			pcpi_insn <= WITH_PCPI ? instr_source_q : 'bx;
 
@@ -1324,7 +1329,7 @@ module picorv32 #(
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_eq <= reg_op1 == reg_op2;
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
-			if (PRIMARY_CORE && is_composed_ready)
+			if (is_composed_primary)
 				alu_ltu <= mcompose_left_carry_in[0];
 			else if (is_composed_secondary)
 				alu_ltu <= 0;
@@ -1341,7 +1346,7 @@ module picorv32 #(
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_eq = reg_op1 == reg_op2;
 			alu_lts = $signed(reg_op1) < $signed(reg_op2);
-			if (PRIMARY_CORE && is_composed_ready)
+			if (is_composed_primary)
 				alu_ltu = mcompose_left_carry_in[0];
 			else if (is_composed_secondary)
 				alu_ltu = 0;
@@ -1580,6 +1585,7 @@ module picorv32 #(
 		do_waitirq <= 0;
 
 		mcompose_decoder_trigger <= is_composed_secondary ? mcompose_exec_in : 0;
+		mcompose_pseudo_trigger <= 0;
 		
 		trace_valid <= 0;
 
@@ -1637,17 +1643,30 @@ module picorv32 #(
 				latched_rd <= decoded_rd;
 				latched_compr <= compressed_instr;
 
-				if (mcompose_decoder_trigger) begin
-					`debug($display("-- %-0t", $time);)
-					if (ENABLE_COUNTERS) begin
-						count_instr <= count_instr + 1;
-						if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
+				if (mcompose_right_ready_in && mcompose_left_ready_in) begin
+					if (mcompose_decoder_trigger) begin
+						`debug($display("-- %-0t", $time);)
+						if (ENABLE_COUNTERS) begin
+							count_instr <= count_instr + 1;
+							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
+						end
+						cpu_state <= cpu_state_ld_rs1;
 					end
-					cpu_state <= cpu_state_ld_rs1;
-				end
+				end else begin
+					mcompose_decoder_trigger <= mcompose_decoder_trigger;
+					mcompose_pseudo_trigger <= mcompose_pseudo_trigger;
+				end		
 			end
 
 			cpu_state_fetch: begin
+				latched_store <= 0;
+				latched_stalu <= 0;
+				latched_branch <= 0;
+				latched_is_lu <= 0;
+				latched_is_lh <= 0;
+				latched_is_lb <= 0;
+				latched_rd <= decoded_rd;
+				latched_compr <= compressed_instr;
 				if (is_composed_ready || !is_composed || SECONDARY_CORE) begin
 					mem_do_rinst <= !decoder_trigger && !do_waitirq;
 					mem_wordsize <= 0;
@@ -1685,15 +1704,6 @@ module picorv32 #(
 
 					reg_pc <= current_pc;
 					reg_next_pc <= current_pc;
-
-					latched_store <= 0;
-					latched_stalu <= 0;
-					latched_branch <= 0;
-					latched_is_lu <= 0;
-					latched_is_lh <= 0;
-					latched_is_lb <= 0;
-					latched_rd <= decoded_rd;
-					latched_compr <= compressed_instr;
 
 					if (ENABLE_IRQ && ((decoder_trigger && !irq_active && !irq_delay && |(irq_pending & ~irq_mask)) || irq_state)) begin
 						irq_state <=
@@ -1734,6 +1744,9 @@ module picorv32 #(
 							cpu_state <= cpu_state_ld_rs1;
 						end
 					end
+				end else begin
+					decoder_trigger <= decoder_trigger;
+					decoder_pseudo_trigger <= decoder_pseudo_trigger;
 				end
 			end
 
@@ -2059,8 +2072,13 @@ module picorv32 #(
 					end
 					if (!mem_do_prefetch && mem_done) begin
 						cpu_state <= cpu_state_fetch_or_composed;
-						decoder_trigger <= 1;
-						decoder_pseudo_trigger <= 1;
+						if (is_composed_secondary) begin
+							mcompose_decoder_trigger <= 1;
+							mcompose_pseudo_trigger <= 1;
+						end else begin
+							decoder_trigger <= 1;
+							decoder_pseudo_trigger <= 1;
+						end
 					end
 				end
 			end
@@ -2092,8 +2110,13 @@ module picorv32 #(
 							latched_is_lh: reg_out <= $signed(mem_rdata_word[15:0]);
 							latched_is_lb: reg_out <= $signed(mem_rdata_word[7:0]);
 						endcase
-						decoder_trigger <= 1;
-						decoder_pseudo_trigger <= 1;
+						if (is_composed_secondary) begin
+							mcompose_decoder_trigger <= 1;
+							mcompose_pseudo_trigger <= 1;
+						end else begin
+							decoder_trigger <= 1;
+							decoder_pseudo_trigger <= 1;
+						end
 						cpu_state <= cpu_state_fetch_or_composed;
 					end
 				end

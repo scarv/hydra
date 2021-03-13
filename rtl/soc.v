@@ -61,8 +61,9 @@ module soc #(
 	wire        mcompose_exec;
 	wire [31:0] mcompose_instr;
 	wire [N_CORES*4 - 1 : 0] dummy;
-	wire [N_CORES-1 : 0] mcompose_ready;
-	assign mcompose_ready[N_CORES-1] = 1'b1;
+	wire [N_CORES-1 : 0] mcompose_right_ready;
+	wire [N_CORES-1 : 0] mcompose_left_ready;
+	assign mcompose_right_ready[N_CORES-1] = 1;
 
 	localparam LEFT_CARRY_BITS = 5;
 	localparam RIGHT_CARRY_BITS = 2;
@@ -99,7 +100,9 @@ module soc #(
 		.mem_la_wstrb      (mem_la_wstrb[ 3: 0]),
 		.mem_rdata         (mem_rdata   [31: 0]),
 		.mcompose_out            (mcompose),
-		.mcompose_ready_in       (mcompose_ready[0]),
+		.mcompose_right_ready_in (mcompose_right_ready[0]),
+		.mcompose_left_ready_out (mcompose_left_ready[0]),
+		.mcompose_left_ready_in  (mcompose_left_ready[N_CORES-1]),
 		.mcompose_left_carry_out (mcompose_left_carry[LEFT_CARRY_BITS-1:0]),
 		.mcompose_left_carry_in  (mcompose_left_carry[N_CORES*LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
 		.mcompose_right_carry_out(mcompose_right_carry[N_CORES*RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
@@ -139,10 +142,12 @@ module soc #(
 				.mem_la_wstrb      (mem_la_wstrb [4*core_num  + 3  -: 4]),
 				.mem_rdata         (mem_rdata    [32*core_num + 31 -: 32]),
 				.mcompose_in             (mcompose),
-				.mcompose_ready_in       ((core_num == N_CORES - 1) ? 1'b1 : mcompose_ready[core_num]),
+				.mcompose_right_ready_in (mcompose_right_ready[core_num]),
+				.mcompose_left_ready_in  (mcompose_left_ready[core_num - 1]),
 				.mcompose_left_carry_in  (mcompose_left_carry[LEFT_CARRY_BITS*(core_num - 1) + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
 				.mcompose_right_carry_in (mcompose_right_carry[RIGHT_CARRY_BITS*core_num + RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
-				.mcompose_ready_out      (mcompose_ready[core_num - 1]),
+				.mcompose_right_ready_out(mcompose_right_ready[core_num - 1]),
+				.mcompose_left_ready_out (mcompose_left_ready[core_num]),
 				.mcompose_left_carry_out (mcompose_left_carry[LEFT_CARRY_BITS*core_num + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
 				.mcompose_right_carry_out(mcompose_right_carry[RIGHT_CARRY_BITS*(core_num - 1) + RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
 				.mcompose_instr_in       (mcompose_instr),
@@ -189,7 +194,7 @@ module soc #(
 		mem_ready <= 0;
         tx_send   <= 0;
 
-		dbg[2:0] <= mcompose_ready;
+		dbg[2:0] <= mcompose_right_ready;
 		dbg[6:3] <= mcompose[3:0];
 
 		if (mcompose_exec)
