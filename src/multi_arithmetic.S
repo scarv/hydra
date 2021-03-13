@@ -190,44 +190,36 @@ b_loop_end_comp:
 multi_add_comp:
     li   carry, 0
     csrr hart_id, mhartid // Read HARTID
-    slli hart_id, hart_id, 2
-    add a_addr, a_addr, hart_id
-    add b_addr, b_addr, hart_id
-    add res_addr, res_addr, hart_id
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
     bnez hart_id, multi_add_comp_loop_sec
 multi_add_comp_loop:
     beq  a_addr, a_addr_end, multi_add_comp_end
-    lw   a_value, 0(a_addr)
-    lw   b_value, 0(b_addr)
     // compose
     csrw mcompose, n_cores
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
     add  res_value, a_value, carry
     sltu carry, res_value, a_value
     add  res_value, res_value, b_value
     sltu temp_carry, res_value, b_value
-    csrw mcompose, zero
-    // uncompose
     or   carry, carry, temp_carry
     sw   res_value, 0(res_addr)
     add a_addr, a_addr, bytes_per_word
     add b_addr, b_addr, bytes_per_word
     add res_addr, res_addr, bytes_per_word
+    csrw mcompose, zero
+    // uncompose
     j    multi_add_comp_loop
 multi_add_comp_loop_sec:
     beq  a_addr, a_addr_end, multi_add_comp_end
-    lw   a_value, 0(a_addr)
-    lw   b_value, 0(b_addr)
     // compose
     csrw mcompose, n_cores
     // uncompose
-    li  carry, 0
-    sw  res_value, 0(res_addr)
-    add a_addr, a_addr, bytes_per_word
-    add b_addr, b_addr, bytes_per_word
-    add res_addr, res_addr, bytes_per_word
+    //add a_addr, a_addr, bytes_per_word
+    //add b_addr, b_addr, bytes_per_word
+    //add res_addr, res_addr, bytes_per_word
     j   multi_add_comp_loop_sec
 multi_add_comp_end:
     ret

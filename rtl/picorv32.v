@@ -135,7 +135,7 @@ module picorv32 #(
 	input             mcompose_right_ready_in,
 	output 			  mcompose_left_ready_out,
 	input             mcompose_left_ready_in,
-	output     [31:0] mcompose_instr_out,
+	output reg [31:0] mcompose_instr_out,
 	input      [31:0] mcompose_instr_in,
 	output 			  mcompose_exec_out,
 	input             mcompose_exec_in,
@@ -765,7 +765,6 @@ module picorv32 #(
 		assign mcompose_right_ready_out = 0;
 		assign mcompose_left_ready_out = (mcompose > 0) && (cpu_state == cpu_state_fetch);
 		assign mcompose_exec_out = (mcompose > 0) && mem_do_rinst && mem_done;
-		assign mcompose_instr_out = (decoder_trigger) ? mem_rdata_q : mem_rdata_latched;
 	end
 	if (SECONDARY_CORE) begin
 		assign mcompose_out = 0;
@@ -1380,6 +1379,15 @@ module picorv32 #(
 		if (PRIMARY_CORE || SECONDARY_CORE) begin
 			mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
 			mcompose_right_carry_out[1] = pcpi_mul_rs1_bit32_out;
+		end
+
+		if (PRIMARY_CORE) begin
+			if (mem_do_rinst && mem_done)
+				mcompose_instr_out = mem_rdata_latched;
+			else if (decoder_trigger && !decoder_pseudo_trigger)
+				mcompose_instr_out = mem_rdata_q;
+			else
+				mcompose_instr_out = reg_op1;
 		end
 
 		alu_out_0 = 'bx;
@@ -2068,7 +2076,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-						reg_op1 <= reg_op1 + decoded_imm;
+						reg_op1 <= decoded_imm + ((is_composed_secondary) ? ((HART_ID << 2) + mcompose_instr_in) : reg_op1);
 						set_mem_do_wdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin
@@ -2098,7 +2106,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-						reg_op1 <= reg_op1 + decoded_imm;
+						reg_op1 <= decoded_imm + ((is_composed_secondary) ? ((HART_ID << 2) + mcompose_instr_in) : reg_op1);
 						set_mem_do_rdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin
