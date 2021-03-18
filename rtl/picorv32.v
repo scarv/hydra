@@ -232,7 +232,7 @@ module picorv32 #(
 	reg        mcompose_launch_insn;
 
 	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0);
-	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready);
+	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready) && (mcompose_in > HART_ID);
 	wire       is_composed = is_composed_primary || is_composed_secondary;
 	wire       is_composed_ready = is_composed_primary && mcompose_right_ready_in;
 
@@ -1362,8 +1362,8 @@ module picorv32 #(
 
 	always @* begin
 
-		mcompose_left_carry_out = 5'b0;
-		if (PRIMARY_CORE || SECONDARY_CORE) begin
+		mcompose_left_carry_out = 0;
+		if (is_composed) begin
 			if (is_sltiu_bltu_sltu) begin
 				if (mcompose_in - 1 == HART_ID)
 					mcompose_left_carry_out[0] = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
@@ -1377,12 +1377,16 @@ module picorv32 #(
 				mcompose_left_carry_out[4] = pcpi_mul_rdx_bit63_out;
 			end else
 				mcompose_left_carry_out[0] = alu_add_sub[32];
+		end else if (SECONDARY_CORE) begin
+			mcompose_left_carry_out = mcompose_left_carry_in;
 		end
 
-		mcompose_right_carry_out = 2'b0;
-		if (PRIMARY_CORE || SECONDARY_CORE) begin
+		mcompose_right_carry_out = 0;
+		if (is_composed) begin
 			mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
 			mcompose_right_carry_out[1] = pcpi_mul_rs1_bit32_out;
+		end else if (SECONDARY_CORE) begin
+			mcompose_right_carry_out = mcompose_right_carry_in;
 		end
 
 		if (PRIMARY_CORE) begin
