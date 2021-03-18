@@ -1330,14 +1330,17 @@ module picorv32 #(
 				alu_add_sub <= instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
-			alu_eq <= reg_op1 == reg_op2;
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
-			if (is_composed_primary)
+			if (is_composed_primary) begin
 				alu_ltu <= mcompose_left_carry_in[0];
-			else if (is_composed_secondary)
+				alu_eq <= (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
+			end else if (is_composed_secondary) begin
 				alu_ltu <= 0;
-			else
+				alu_eq <= 0;
+			end else begin
 				alu_ltu <= reg_op1 < reg_op2;
+				alu_eq <= reg_op1 == reg_op2;
+			end
 			alu_shl <= reg_op1 << reg_op2[4:0];
 			alu_shr <= $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
 		end
@@ -1347,14 +1350,17 @@ module picorv32 #(
 				alu_add_sub = instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
-			alu_eq = reg_op1 == reg_op2;
 			alu_lts = $signed(reg_op1) < $signed(reg_op2);
-			if (is_composed_primary)
+			if (is_composed_primary) begin
 				alu_ltu = mcompose_left_carry_in[0];
-			else if (is_composed_secondary)
+				alu_eq = (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
+			end else if (is_composed_secondary) begin
 				alu_ltu = 0;
-			else
+				alu_eq = 0;
+			end else begin
 				alu_ltu = reg_op1 < reg_op2;
+				alu_eq = reg_op1 == reg_op2;
+			end
 			alu_shl = reg_op1 << reg_op2[4:0];
 			alu_shr = $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
 		end
@@ -1383,7 +1389,14 @@ module picorv32 #(
 
 		mcompose_right_carry_out = 0;
 		if (is_composed) begin
-			mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
+			if (instr_beq) begin
+				if (SECONDARY_CORE && HART_ID == mcompose_in - 1)
+					mcompose_right_carry_out[0] = (reg_op1 == reg_op2);
+				else
+					mcompose_right_carry_out[0] = mcompose_right_carry_in[0] && (reg_op1 == reg_op2);
+			end else
+				mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
+
 			mcompose_right_carry_out[1] = pcpi_mul_rs1_bit32_out;
 		end else if (SECONDARY_CORE) begin
 			mcompose_right_carry_out = mcompose_right_carry_in;
@@ -1666,14 +1679,12 @@ module picorv32 #(
 				if (mcompose_right_ready_in && mcompose_left_ready_in) begin
 					if (mcompose_launch_insn) begin
 						mcompose_launch_insn <= 0;
-						if (!is_uncomposable) begin
-							`debug($display("-- %-0t", $time);)
-							if (ENABLE_COUNTERS) begin
-								count_instr <= count_instr + 1;
-								if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
-							end
-							cpu_state <= cpu_state_ld_rs1;
+						`debug($display("-- %-0t", $time);)
+						if (ENABLE_COUNTERS) begin
+							count_instr <= count_instr + 1;
+							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 						end
+						cpu_state <= cpu_state_ld_rs1;
 					end
 				end
 			end
@@ -1968,7 +1979,7 @@ module picorv32 #(
 										alu_wait <= 1;
 									end else
 										mem_do_rinst <= mem_do_prefetch;
-									cpu_state <= cpu_state_exec;
+									cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
 								end
 							endcase
 						end else
@@ -2018,7 +2029,7 @@ module picorv32 #(
 							alu_wait <= 1;
 						end else
 							mem_do_rinst <= mem_do_prefetch;
-						cpu_state <= cpu_state_exec;
+						cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
 					end
 				endcase
 			end

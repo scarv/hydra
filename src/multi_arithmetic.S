@@ -166,7 +166,14 @@ a_loop_end_comp:
     add  b_addr, b_addr, bytes_per_word
     j    b_loop_comp
 multi_mult_sec:
-    li   bytes_per_word, 0
+    mv   a_addr, zero
+    mv   bytes_per_word, zero
+    mv   a_addr_temp, zero
+    mv   a_addr_end, zero
+    mv   b_addr_end, b_addr
+    mv   res_addr, zero
+    mv   res_addr_temp, zero
+    mv   temp, zero
     csrw mcompose, n_cores
 b_loop_end_comp:
     csrw mcompose, zero
@@ -196,7 +203,8 @@ multi_add_comp_loop:
     add res_addr, res_addr, bytes_per_word
     j    multi_add_comp_loop
 multi_add_sec:
-    li   bytes_per_word, 0
+    mv   bytes_per_word, zero
+    mv   a_addr_end, a_addr
     csrw mcompose, n_cores
 multi_add_comp_end:
     csrw mcompose, zero
@@ -238,6 +246,8 @@ multi_xor_comp_loop:
     add res_addr, res_addr, bytes_per_word
     j    multi_xor_comp_loop
 multi_xor_sec:
+    mv   bytes_per_word, zero
+    mv   a_addr_end, a_addr
     csrw mcompose, n_cores
 multi_xor_comp_end:
     csrw mcompose, zero
