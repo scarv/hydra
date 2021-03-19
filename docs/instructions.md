@@ -28,7 +28,7 @@ Implemented: `LW, SW`
 
 `JAL, JALR, BEQ, BNE, BLT[U], BGE[U]`
 
-Implemented: `JAL, JALR`
+Implemented: `JAL, JALR, BEQ, BNE, BLTU, BGEU`
 
 ## Other Instructions
 
