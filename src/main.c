@@ -157,7 +157,7 @@ int main()
         set_mcompose(NUM_CORES);
         load_regs(regs_context[0]);
         set_mcompose(NUM_CORES);
-        load_regs(regs_context[hart_id]);
+        restore_regs(regs_context);
     }
 
     blink(hart_id);

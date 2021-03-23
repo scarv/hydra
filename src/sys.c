@@ -62,7 +62,7 @@ void *memset(void *str, int c, unsigned int n) {
 
 unsigned int get_hart_id() {
     unsigned int id;
-    asm ("csrr %0, 0xf14" : "=r"(id) : : );
+    asm volatile ("csrr %0, 0xf14" : "=r"(id) : : );
     return id;
 }
 
