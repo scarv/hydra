@@ -58,8 +58,11 @@ module soc #(
 	reg [N_CORES_BITS-1:0] mem_la_arb_counter = 1;
 
 	wire [ 7:0] mcompose;
+	wire        mcompose_mode;
 	wire        mcompose_exec;
 	wire [31:0] mcompose_instr;
+	wire [31:0] mcompose_reg;
+	wire [31:0] mcompose_redundant;
 	wire [N_CORES*4 - 1 : 0] dummy;
 	wire [N_CORES-1 : 0] mcompose_right_ready;
 	wire [N_CORES-1 : 0] mcompose_left_ready;
@@ -100,6 +103,7 @@ module soc #(
 		.mem_la_wstrb      (mem_la_wstrb[ 3: 0]),
 		.mem_rdata         (mem_rdata   [31: 0]),
 		.mcompose_out            (mcompose),
+		.mcompose_mode_out       (mcompose_mode),
 		.mcompose_right_ready_in (mcompose_right_ready[0]),
 		.mcompose_left_ready_out (mcompose_left_ready[0]),
 		.mcompose_left_ready_in  (mcompose_left_ready[N_CORES-1]),
@@ -108,6 +112,8 @@ module soc #(
 		.mcompose_right_carry_out(mcompose_right_carry[N_CORES*RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
 		.mcompose_right_carry_in (mcompose_right_carry[RIGHT_CARRY_BITS-1:0]),
 		.mcompose_instr_out      (mcompose_instr),
+		.mcompose_reg_out        (mcompose_reg),
+		.mcompose_redundant_out  (mcompose_redundant),
 		.mcompose_exec_out       (mcompose_exec)
 	);
 	/* verilator lint_on PINMISSING */
@@ -119,7 +125,7 @@ module soc #(
 			
 			/* verilator lint_off PINMISSING */
 			picorv32 #(
-				.ENABLE_COUNTERS(0),
+				.ENABLE_COUNTERS(1),
 				.ENABLE_COUNTERS64(0),
 				.ENABLE_MHARTID(1),
 				.ENABLE_MCOMPOSE(1),
@@ -142,6 +148,7 @@ module soc #(
 				.mem_la_wstrb      (mem_la_wstrb [4*core_num  + 3  -: 4]),
 				.mem_rdata         (mem_rdata    [32*core_num + 31 -: 32]),
 				.mcompose_in             (mcompose),
+				.mcompose_mode_in        (mcompose_mode),
 				.mcompose_right_ready_in (mcompose_right_ready[core_num]),
 				.mcompose_left_ready_in  (mcompose_left_ready[core_num - 1]),
 				.mcompose_left_carry_in  (mcompose_left_carry[LEFT_CARRY_BITS*(core_num - 1) + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
@@ -151,6 +158,8 @@ module soc #(
 				.mcompose_left_carry_out (mcompose_left_carry[LEFT_CARRY_BITS*core_num + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
 				.mcompose_right_carry_out(mcompose_right_carry[RIGHT_CARRY_BITS*(core_num - 1) + RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
 				.mcompose_instr_in       (mcompose_instr),
+				.mcompose_reg_in         (mcompose_reg),
+				.mcompose_redundant_in   (mcompose_redundant),
 		   		.mcompose_exec_in        (mcompose_exec)
 			);
 			/* verilator lint_on PINMISSING */
@@ -226,8 +235,10 @@ module soc #(
 					mem_ready[mem_arb_counter] <= 1;
 				end
                 mem_write[mem_arb_counter] && mem_addr_high == 4'h2: begin
-					tx_data   <= mem_wdata[7:0];
-					tx_send   <= 1;
+					if (mem_arb_counter == 0) begin
+						tx_data   <= mem_wdata[7:0];
+						tx_send   <= 1;
+					end
 					mem_ready[mem_arb_counter] <= 1;
 				end
 			endcase

@@ -131,12 +131,18 @@ module picorv32 #(
 	// Compose signals
 	output     [ 7:0] mcompose_out,
 	input      [ 7:0] mcompose_in,
+	output            mcompose_mode_out,
+	input             mcompose_mode_in,
 	output 			  mcompose_right_ready_out,
 	input             mcompose_right_ready_in,
 	output 			  mcompose_left_ready_out,
 	input             mcompose_left_ready_in,
 	output reg [31:0] mcompose_instr_out,
 	input      [31:0] mcompose_instr_in,
+	output reg [31:0] mcompose_reg_out,
+	input      [31:0] mcompose_reg_in,
+	output reg [31:0] mcompose_redundant_out,
+	input      [31:0] mcompose_redundant_in,
 	output 			  mcompose_exec_out,
 	input             mcompose_exec_in,
 	output reg [4:0]  mcompose_left_carry_out,
@@ -227,6 +233,7 @@ module picorv32 #(
 	reg [31:0] timer;
 
 	reg [ 7:0] mcompose;
+	reg        mcompose_mode;
 	reg        mcompose_ready;
 	reg        mcompose_decoder_trigger;
 	reg        mcompose_launch_insn;
@@ -235,6 +242,8 @@ module picorv32 #(
 	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready) && (mcompose_in > HART_ID);
 	wire       is_composed = is_composed_primary || is_composed_secondary;
 	wire       is_composed_ready = is_composed_primary && mcompose_right_ready_in;
+
+	wire       is_redundant = is_composed && ((PRIMARY_CORE && mcompose_mode) || (SECONDARY_CORE && mcompose_mode_in));
 
 `ifndef PICORV32_REGS
 	reg [31:0] cpuregs [0:regfile_size-1];
@@ -332,6 +341,7 @@ module picorv32 #(
 			.clk       (clk            ),
 			.resetn    (resetn         ),
 			.mcompose  ((PRIMARY_CORE) ? mcompose : mcompose_in),
+			.is_composed  (is_composed && !is_redundant),
 			.rs1_lsb_in   (mcompose_left_carry_in[0]),
 			.rs2_bit0_in  (mcompose_left_carry_in[1]),
 			.rs2_bit32_in (mcompose_left_carry_in[2]),
@@ -708,7 +718,8 @@ module picorv32 #(
 	reg instr_lb, instr_lh, instr_lw, instr_lbu, instr_lhu, instr_sb, instr_sh, instr_sw;
 	reg instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai;
 	reg instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and;
-	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_ecall_ebreak;
+	reg instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid, instr_ecall_ebreak;
+	reg instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_rdmcompose_mode, instr_wrmcompose_mode, instr_wrmcompose_modei;
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
 	reg instr_mul, instr_mulh, instr_mulhsu, instr_mulhu;
 	wire instr_trap;
@@ -741,7 +752,8 @@ module picorv32 #(
 			instr_lb, instr_lh, instr_lw, instr_lbu, instr_lhu, instr_sb, instr_sh, instr_sw,
 			instr_addi, instr_slti, instr_sltiu, instr_xori, instr_ori, instr_andi, instr_slli, instr_srli, instr_srai,
 			instr_add, instr_sub, instr_sll, instr_slt, instr_sltu, instr_xor, instr_srl, instr_sra, instr_or, instr_and,
-			instr_rdcycle, instr_rdmhartid, instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_rdcycleh, instr_rdinstr, instr_rdinstrh,
+			instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh, instr_rdmhartid,
+			instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_rdmcompose_mode, instr_wrmcompose_mode, instr_wrmcompose_modei, 
 			instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer};
 
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh;
@@ -752,7 +764,7 @@ module picorv32 #(
 
 	wire instr_any_mul = |{instr_mul, instr_mulh, instr_mulhsu, instr_mulhu};
 
-	reg [63:0] new_ascii_instr;
+	reg [255:0] new_ascii_instr;
 	`FORMAL_KEEP reg [63:0] dbg_ascii_instr;
 	`FORMAL_KEEP reg [31:0] dbg_insn_imm;
 	`FORMAL_KEEP reg [4:0] dbg_insn_rs1;
@@ -765,16 +777,20 @@ module picorv32 #(
 
 	if (PRIMARY_CORE) begin
 		assign mcompose_out = mcompose;
+		assign mcompose_mode_out = mcompose_mode;
 		assign mcompose_right_ready_out = 0;
 		assign mcompose_left_ready_out = (mcompose > 0) && (cpu_state == cpu_state_fetch) && (decoder_trigger);
 		assign mcompose_exec_out = (mcompose > 0) && mem_do_rinst && mem_done;
 	end
 	if (SECONDARY_CORE) begin
 		assign mcompose_out = 0;
+		assign mcompose_mode_out = 0;
 		assign mcompose_left_ready_out = (mcompose_ready && mcompose_left_ready_in && cpu_state == cpu_state_composed) || (mcompose_in <= HART_ID);
 		assign mcompose_right_ready_out = (mcompose_ready && mcompose_right_ready_in && cpu_state == cpu_state_composed) || (mcompose_in <= HART_ID);
 		assign mcompose_exec_out = 1'b0;
 		assign mcompose_instr_out = 32'b0;
+		assign mcompose_reg_out = 32'b0;
+		assign mcompose_redundant_out = 32'b0;
 	end
 
 	wire [31:0] instr_source = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
@@ -830,6 +846,9 @@ module picorv32 #(
 		if (instr_rdmcompose) new_ascii_instr = "rdmcompose";
 		if (instr_wrmcompose) new_ascii_instr = "wrmcompose";
 		if (instr_wrmcomposei) new_ascii_instr = "wrmcomposei";
+		if (instr_rdmcompose_mode) new_ascii_instr = "rdmcompose_mode";
+		if (instr_wrmcompose_mode) new_ascii_instr = "wrmcompose_mode";
+		if (instr_wrmcompose_modei) new_ascii_instr = "wrmcompose_modei";
 		if (instr_rdcycleh) new_ascii_instr = "rdcycleh";
 		if (instr_rdinstr)  new_ascii_instr = "rdinstr";
 		if (instr_rdinstrh) new_ascii_instr = "rdinstrh";
@@ -1180,6 +1199,9 @@ module picorv32 #(
 			instr_rdmcompose  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b01111100000000000010) && ENABLE_MCOMPOSE;
 			instr_wrmcompose  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:20] == 'b011111000000 && instr_source_q[14:12] == 3'b001) && ENABLE_MCOMPOSE;
 			instr_wrmcomposei  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:20] == 'b011111000000 && instr_source_q[14:12] == 3'b101) && ENABLE_MCOMPOSE;
+			instr_rdmcompose_mode  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:12] == 'b01111100000100000010) && ENABLE_MCOMPOSE;
+			instr_wrmcompose_mode  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:20] == 'b011111000001 && instr_source_q[14:12] == 3'b001) && ENABLE_MCOMPOSE && !SECONDARY_CORE;
+			instr_wrmcompose_modei  <= (instr_source_q[6:0] == 7'b1110011 && instr_source_q[31:20] == 'b011111000001 && instr_source_q[14:12] == 3'b101) && ENABLE_MCOMPOSE && !SECONDARY_CORE;
 
 			instr_ecall_ebreak <= ((instr_source_q[6:0] == 7'b1110011 && !instr_source_q[31:21] && !instr_source_q[19:7]) ||
 					(COMPRESSED_ISA && instr_source_q[15:0] == 16'h9002));
@@ -1298,6 +1320,7 @@ module picorv32 #(
 	reg set_mem_do_wdata;
 
 	reg latched_store;
+	reg prev_latched_store;
 	reg latched_stalu;
 	reg latched_branch;
 	reg latched_compr;
@@ -1326,15 +1349,15 @@ module picorv32 #(
 
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
-			if (is_composed_secondary)
+			if (is_composed_secondary && !is_redundant)
 				alu_add_sub <= instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
-			if (is_composed_primary) begin
+			if (is_composed_primary && !is_redundant) begin
 				alu_ltu <= mcompose_left_carry_in[0];
 				alu_eq <= (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
-			end else if (is_composed_secondary) begin
+			end else if (is_composed_secondary && !is_redundant) begin
 				alu_ltu <= 0;
 				alu_eq <= 0;
 			end else begin
@@ -1346,15 +1369,15 @@ module picorv32 #(
 		end
 	end else begin
 		always @* begin
-			if (is_composed_secondary)
+			if (is_composed_secondary && !is_redundant)
 				alu_add_sub = instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
 			else
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_lts = $signed(reg_op1) < $signed(reg_op2);
-			if (is_composed_primary) begin
+			if (is_composed_primary && !is_redundant) begin
 				alu_ltu = mcompose_left_carry_in[0];
 				alu_eq = (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
-			end else if (is_composed_secondary) begin
+			end else if (is_composed_secondary && !is_redundant) begin
 				alu_ltu = 0;
 				alu_eq = 0;
 			end else begin
@@ -1369,7 +1392,7 @@ module picorv32 #(
 	always @* begin
 
 		mcompose_left_carry_out = 0;
-		if (is_composed) begin
+		if (is_composed && !is_redundant) begin
 			if (is_sltiu_bltu_sltu) begin
 				if (mcompose_in - 1 == HART_ID)
 					mcompose_left_carry_out[0] = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
@@ -1388,7 +1411,7 @@ module picorv32 #(
 		end
 
 		mcompose_right_carry_out = 0;
-		if (is_composed) begin
+		if (is_composed && !is_redundant) begin
 			if (instr_beq) begin
 				if (SECONDARY_CORE && HART_ID == mcompose_in - 1)
 					mcompose_right_carry_out[0] = (reg_op1 == reg_op2);
@@ -1407,8 +1430,30 @@ module picorv32 #(
 				mcompose_instr_out = mem_rdata_latched;
 			else if (decoder_trigger && !decoder_pseudo_trigger)
 				mcompose_instr_out = mem_rdata_q;
+
+			if (is_redundant && instr_rdinstr)
+				mcompose_reg_out = count_instr[31:0];
+			else if (is_redundant && instr_rdinstrh)
+				mcompose_reg_out = count_instr[63:32];
+			else if (is_redundant && instr_rdcycle)
+				mcompose_reg_out = count_cycle[31:0];
+			else if (is_redundant && instr_rdcycleh)
+				mcompose_reg_out = count_cycle[63:32];
+			else if (is_redundant && instr_rdmhartid)
+				mcompose_reg_out = HART_ID;
+			else if (is_redundant)
+				mcompose_reg_out = reg_pc;
 			else
-				mcompose_instr_out = reg_op1;
+				mcompose_reg_out = reg_op1;
+
+			if (mem_la_write && is_redundant)
+				mcompose_redundant_out = mem_la_wdata;
+			else if (cpuregs_write && is_redundant)
+				mcompose_redundant_out = cpuregs_wrdata;
+			else if (prev_latched_store && is_redundant)
+				mcompose_redundant_out = cpuregs_prev_wrdata;
+			else
+				mcompose_redundant_out = 0;
 		end
 
 		alu_out_0 = 'bx;
@@ -1466,6 +1511,7 @@ module picorv32 #(
 
 	reg cpuregs_write;
 	reg [31:0] cpuregs_wrdata;
+	reg [31:0] cpuregs_prev_wrdata;
 	reg [31:0] cpuregs_rs1;
 	reg [31:0] cpuregs_rs2;
 	reg [regindex_bits-1:0] decoded_rs;
@@ -1478,8 +1524,13 @@ module picorv32 #(
 			(* parallel_case *)
 			case (1'b1)
 				latched_branch: begin
+					if (is_composed_secondary && is_redundant) begin
+						cpuregs_wrdata = mcompose_reg_in + (latched_compr ? 2 : 4);
+						cpuregs_write = 1;
+					end else begin
 					cpuregs_wrdata = reg_pc + (latched_compr ? 2 : 4);
 					cpuregs_write = 1;
+				end
 				end
 				latched_store && !latched_branch: begin
 					cpuregs_wrdata = latched_stalu ? alu_out_q : reg_out;
@@ -1499,14 +1550,17 @@ module picorv32 #(
 
 `ifndef PICORV32_REGS
 	always @(posedge clk) begin
-		if (resetn && cpuregs_write && latched_rd)
+		if (resetn && cpuregs_write && latched_rd) begin
 `ifdef PICORV32_TESTBUG_001
 			cpuregs[latched_rd ^ 1] <= cpuregs_wrdata;
 `elsif PICORV32_TESTBUG_002
 			cpuregs[latched_rd] <= cpuregs_wrdata ^ 1;
 `else
 			cpuregs[latched_rd] <= cpuregs_wrdata;
+			cpuregs_prev_wrdata <= cpuregs_wrdata;
+			prev_latched_store <= 1;
 `endif
+	end
 	end
 
 	always @* begin
@@ -1644,8 +1698,12 @@ module picorv32 #(
 			irq_state <= 0;
 			eoi <= 0;
 			timer <= 0;
-			if (PRIMARY_CORE)
+			prev_latched_store <= 0;
+			cpuregs_prev_wrdata <= 0;
+			if (PRIMARY_CORE) begin
 				mcompose <= 0;
+				mcompose_mode <= 0;
+			end
 			if (SECONDARY_CORE)
 				mcompose_launch_insn <= 0;
 			if (ENABLE_MCOMPOSE)
@@ -1684,7 +1742,16 @@ module picorv32 #(
 							count_instr <= count_instr + 1;
 							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 						end
+						if (instr_jal && is_redundant) begin
+							latched_branch <= 1;
+						end
+						if (is_redundant && prev_latched_store && cpuregs_prev_wrdata != mcompose_redundant_in) begin
+							cpu_state <= cpu_state_trap;
+							$display("bad reg %d  %x != %x", latched_rd, cpuregs_prev_wrdata, mcompose_redundant_in);
+						end else begin
 						cpu_state <= cpu_state_ld_rs1;
+							prev_latched_store <= 0;
+						end
 					end
 				end
 			end
@@ -1784,6 +1851,7 @@ module picorv32 #(
 			cpu_state_ld_rs1: begin
 				reg_op1 <= 'bx;
 				reg_op2 <= 'bx;
+				prev_latched_store <= 0;
 
 				(* parallel_case *)
 				case (1'b1)
@@ -1829,6 +1897,9 @@ module picorv32 #(
 						end
 					end
 					(ENABLE_COUNTERS && is_rdcycle_rdcycleh_rdinstr_rdinstrh) || (ENABLE_MHARTID && instr_rdmhartid): begin
+						if (is_composed_secondary && is_redundant) begin
+							reg_out <= mcompose_reg_in;
+						end else begin
 						(* parallel_case, full_case *)
 						case (1'b1)
 							instr_rdcycle && ENABLE_COUNTERS:
@@ -1842,11 +1913,17 @@ module picorv32 #(
 							instr_rdmhartid && ENABLE_MHARTID:
 								reg_out <= HART_ID;
 						endcase
+						end
 						latched_store <= 1;
 						cpu_state <= cpu_state_fetch_or_composed;
 					end
 					ENABLE_MCOMPOSE && instr_rdmcompose: begin
 						reg_out <= PRIMARY_CORE ? mcompose : mcompose_in;
+						latched_store <= 1;
+						cpu_state <= cpu_state_fetch;
+					end
+					ENABLE_MCOMPOSE && instr_rdmcompose_mode: begin
+						reg_out <= PRIMARY_CORE ? mcompose_mode : mcompose_mode_in;
 						latched_store <= 1;
 						cpu_state <= cpu_state_fetch;
 					end
@@ -1860,6 +1937,12 @@ module picorv32 #(
 						mcompose_ready <= (cpuregs_rs1 != 0);
 						cpu_state <= (cpuregs_rs1 != 0) ? cpu_state_composed : cpu_state_fetch;
 					end
+					instr_wrmcompose_mode: begin
+						reg_out <= mcompose_mode;
+						mcompose_mode <= cpuregs_rs1;
+						latched_store <= 1;
+						cpu_state <= cpu_state_fetch;
+					end
 					PRIMARY_CORE && instr_wrmcomposei: begin
 						reg_out <= mcompose;
 						mcompose[4:0] <= decoded_rs1;
@@ -1870,6 +1953,12 @@ module picorv32 #(
 						mcompose_ready <= (decoded_rs1 != 0);
 						cpu_state <= (decoded_rs1 != 0) ? cpu_state_composed : cpu_state_fetch;
 					end
+					instr_wrmcompose_modei: begin
+						reg_out <= mcompose_mode;
+						mcompose_mode <= decoded_rs1;
+						latched_store <= 1;
+						cpu_state <= cpu_state_fetch;
+					end
 					is_lui_auipc_jal: begin
 						reg_op1 <= instr_lui ? 0 : reg_pc;
 						reg_op2 <= decoded_imm;
@@ -1877,7 +1966,7 @@ module picorv32 #(
 							alu_wait <= 1;
 						else
 							mem_do_rinst <= mem_do_prefetch;
-						cpu_state <= cpu_state_exec;
+						cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
 					end
 					ENABLE_IRQ && ENABLE_IRQ_QREGS && instr_getq: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -1951,7 +2040,7 @@ module picorv32 #(
 							alu_wait <= 1;
 						else
 							mem_do_rinst <= mem_do_prefetch;
-						cpu_state <= cpu_state_exec;
+						cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
 					end
 					default: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -2098,7 +2187,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-						reg_op1 <= decoded_imm + ((is_composed_secondary) ? ((HART_ID << 2) + mcompose_instr_in) : reg_op1);
+						reg_op1 <= decoded_imm + ((is_composed_secondary && !is_redundant) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
 						set_mem_do_wdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin
@@ -2128,7 +2217,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-						reg_op1 <= decoded_imm + ((is_composed_secondary) ? ((HART_ID << 2) + mcompose_instr_in) : reg_op1);
+						reg_op1 <= decoded_imm + ((is_composed_secondary && !is_redundant) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
 						set_mem_do_rdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin
@@ -2438,6 +2527,7 @@ module picorv32_pcpi_mul #(
 	input clk, resetn,
 
 	input [7:0] mcompose,
+	input       is_composed,
 	input       rs1_bit31_in,
 	input       rs1_bit63_in,
 	input       rs2_bit0_in,
@@ -2512,7 +2602,7 @@ module picorv32_pcpi_mul #(
 		next_rs2 = rs2;
 
 		for (i = 0; i < STEPS_AT_ONCE; i=i+1) begin
-			if (mcompose > HART_ID && HART_ID > 0)
+			if (is_composed && mcompose > HART_ID && HART_ID > 0)
 				this_rs2 = rs1_lsb_in ? next_rs2 : 0;
 			else
 				this_rs2 = next_rs1[0] ? next_rs2 : 0;
@@ -2523,7 +2613,7 @@ module picorv32_pcpi_mul #(
 				rdx_bit63_out = (mcompose - 1 == HART_ID) ? next_rdx[31] : next_rdx[63];
 				next_rdx = next_rdx << 1;
 
-				if (mcompose > HART_ID) begin
+				if (is_composed && mcompose > HART_ID) begin
 					if (HART_ID > 0) next_rdx[0] = rdx_bit0_in;
 					next_rdx[32] = rdx_bit32_in;
 				end
@@ -2539,21 +2629,21 @@ module picorv32_pcpi_mul #(
 				rdx_bit63_out = (mcompose - 1 == HART_ID) ? next_rdx[31] : next_rdx[63];
 				next_rdx = next_rdx << 1;
 
-				if (mcompose > HART_ID) begin
+				if (is_composed && mcompose > HART_ID) begin
 					if (HART_ID > 0) next_rdx[0] = rdx_bit0_in;
 					next_rdx[32] = rdx_bit32_in;
 				end
 			end
 			next_rs1 = next_rs1 >> 1;
 
-			if (mcompose > HART_ID) begin
+			if (is_composed && mcompose > HART_ID) begin
 				next_rs1[31] = rs1_bit31_in;
 				if (mcompose - 1 > HART_ID) next_rs1[63] = rs1_bit63_in;
 			end
 			
 			next_rs2 = next_rs2 << 1;
 
-			if (mcompose > HART_ID) begin
+			if (is_composed && mcompose > HART_ID) begin
 				if (HART_ID > 0) next_rs2[0] = rs2_bit0_in;
 				next_rs2[32] = rs2_bit32_in;
 			end
@@ -2578,7 +2668,7 @@ module picorv32_pcpi_mul #(
 
 			rd <= 0;
 			rdx <= 0;
-			if (mcompose > 0)
+			if (is_composed && mcompose > 0)
 				mul_counter <= (instr_any_mulh ? (mcompose * 64) - 1 - STEPS_AT_ONCE : (mcompose * 32) - 1 - STEPS_AT_ONCE);
 			else
 				mul_counter <= (instr_any_mulh ? 63 - STEPS_AT_ONCE : 31 - STEPS_AT_ONCE);

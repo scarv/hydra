@@ -24,6 +24,8 @@ const uint8_t aes_out[] = { 0x3a, 0xd7, 0x7b, 0xb4, 0x0d, 0x7a, 0x36, 0x60, 0xa8
 
 uint8_t aes_in[]  = { 0x6b, 0xc1, 0xbe, 0xe2, 0x2e, 0x40, 0x9f, 0x96, 0xe9, 0x3d, 0x7e, 0x11, 0x73, 0x93, 0x17, 0x2a };
 
+uint32_t regs_context[NUM_CORES][31];
+
 int check_result(const void *a, const void *b, int n_bytes) {
     char *a_bytes = (char*)a;
     char *b_bytes = (char*)b;
@@ -122,7 +124,7 @@ void test_aes() {
 
 int main()
 {
-    uint32_t hart_id = get_hart_id();
+    unsigned int hart_id = get_hart_id();
 
     if (hart_id == 0) {
         print_string("Hello from core #0\n");
@@ -131,13 +133,31 @@ int main()
         test_add();
         test_subtract();
         test_multiply();
+
+        save_regs(regs_context[0]);
+        set_mcompose(NUM_CORES);
+        set_mcompose(0);
+
+        print_string("\nEntering redundant mode\n");
+        set_mcompose_mode(MCOMPOSE_MODE_REDUNDANT);
+        set_mcompose(NUM_CORES);
         test_aes();
+        print_string("Exiting redundant mode\n");
+        set_mcompose(0);
+        set_mcompose_mode(MCOMPOSE_MODE_WIDE);
 
     } else {
         multi_xor_comp(a, b, res, NUM_WORDS, NUM_CORES);
         multi_add_comp(a, b, res, NUM_WORDS, NUM_CORES);
         set_mcompose(NUM_CORES);
+        set_mcompose(0);
         multi_mult_comp(a, b, res, NUM_WORDS, NUM_CORES);
+
+        save_regs(regs_context[hart_id]);
+        set_mcompose(NUM_CORES);
+        load_regs(regs_context[0]);
+        set_mcompose(NUM_CORES);
+        load_regs(regs_context[hart_id]);
     }
 
     blink(hart_id);
