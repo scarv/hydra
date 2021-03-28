@@ -208,6 +208,7 @@ multi_add_sec:
     csrw mcompose, n_cores
 multi_add_comp_end:
     csrw mcompose, zero
+    mv   carry_out, carry
     ret
 
 // extern void multi_xor(const void *a, const void *b, void *res, int n_words);
