@@ -1,14 +1,15 @@
-#include "aes.h"
-
-void print_stats(unsigned int cycles, unsigned int instructions);
-
-int multi_add_stats(const void *a, const void *b, void *res, int n_words);
-int multi_add_comp_stats(const void *a, const void *b, void *res, int n_words, int n_cores);
-int multi_sub_stats(const void *a, const void *b, void *res, int n_words);
-void multi_mult_stats(const void *a, const void *b, void *res, int n_words);
-void multi_mult_comp_stats(const void *a, const void *b, void *res, int n_words, int n_cores);
-void multi_xor_stats(const void *a, const void *b, void *res, int n_words);
-void multi_xor_comp_stats(const void *a, const void *b, void *res, int n_words, int n_cores);
-
-void AES_init_ctx_stats(struct AES_ctx* ctx, const uint8_t* key);
-void AES_ECB_encrypt_stats(const struct AES_ctx* ctx, uint8_t* buf);
+#define MEASURE(stmt) {                                 \
+    uint32_t   cycle_pre,   cycle_post;                 \
+    uint32_t instret_pre, instret_post;                 \
+                                                        \
+    asm volatile("rdinstret %0" : "=r" (instret_pre));  \
+    asm volatile("rdcycle   %0" : "=r" (cycle_pre));    \
+    stmt;                                               \
+    asm volatile("rdcycle   %0" : "=r" (cycle_post));   \
+    asm volatile("rdinstret %0" : "=r" (instret_post)); \
+                                                        \
+    print_int(cycle_post - cycle_pre - 4);              \
+    print_string(" cycles and ");                       \
+    print_int(instret_post - instret_pre - 3);          \
+    print_string(" instructions\n");                    \
+  }

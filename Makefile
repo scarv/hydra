@@ -4,10 +4,10 @@ FIRMWARE_DIR = src
 RTL_DIR = rtl
 BUILD_DIR = build
 
-SOURCES = init.S main.c sys.c multi_arithmetic.S stats.c stats.S aes.c blink.c
+SOURCES = init.S main.c sys.c multi_arithmetic.S aes.c blink.c scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c scarv/mp/mrz/*.c scarv/share/*.c scarv/scarv.c
 
-MEM_SIZE = 8192
-STACK_SIZE = 256
+MEM_SIZE = 32768
+STACK_SIZE = 1024
 
 icefun: $(BUILD_DIR)/icefun.bin
 
@@ -18,7 +18,7 @@ arty: $(BUILD_DIR)/arty.bit
 
 $(BUILD_DIR)/firmware.elf: $(patsubst %, $(FIRMWARE_DIR)/%, $(SOURCES)) $(FIRMWARE_DIR)/firmware.lds
 	$(TOOLCHAIN_PREFIX)gcc \
-		-march=rv32im -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
+		-march=rv32im -Isrc -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
 		-o $@ $(filter %.c, $^) $(filter %.S, $^) \
 		--std=gnu99 -lgcc -Wl,-Bstatic,-T,$(FIRMWARE_DIR)/firmware.lds,--strip-debug
 	chmod -x $@
@@ -28,7 +28,7 @@ $(BUILD_DIR)/firmware.bin: $(BUILD_DIR)/firmware.elf
 	chmod -x $@
 
 $(BUILD_DIR)/firmware.hex: $(BUILD_DIR)/firmware.bin
-	python3 util/makehex.py $< 1792 > $@
+	python3 util/makehex.py $< 7168 > $@
 
 ## ------------------------------
 ## simulation: iverilog

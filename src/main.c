@@ -2,6 +2,10 @@
 #include "multi_arithmetic.h"
 #include "stats.h"
 #include "blink.h"
+#include "aes.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <scarv/scarv.h>
 
 #define NUM_WORDS 16
 #define NUM_BYTES (NUM_WORDS << 2)
@@ -39,7 +43,7 @@ int check_result(const void *a, const void *b, int n_bytes) {
 void test_xor() {
     print_int(NUM_BITS);
     print_string("-bit XOR: ");
-    multi_xor_stats(a, b, res, NUM_WORDS);
+    MEASURE(multi_xor(a, b, res, NUM_WORDS));
 
     if (!check_result(res, a_xor_b, NUM_BYTES)) {
         print_string("multi_xor failed!\n");
@@ -49,7 +53,7 @@ void test_xor() {
 
     print_int(NUM_BITS);
     print_string("-bit composed XOR: ");
-    multi_xor_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
+    MEASURE(multi_xor_comp(a, b, res, NUM_WORDS, NUM_CORES));
 
     if (!check_result(res, a_xor_b, NUM_BYTES)) {
         print_string("composed multi_xor failed!\n");
@@ -59,7 +63,7 @@ void test_xor() {
 void test_add() {
     print_int(NUM_BITS);
     print_string("-bit addition: ");
-    multi_add_stats(a, b, res, NUM_WORDS);
+    MEASURE(multi_add(a, b, res, NUM_WORDS));
 
     if (!check_result(res, a_plus_b, NUM_BYTES)) {
         print_string("multi_add failed!\n");
@@ -69,7 +73,7 @@ void test_add() {
 
     print_int(NUM_BITS);
     print_string("-bit composed addition: ");
-    multi_add_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
+    MEASURE(multi_add_comp(a, b, res, NUM_WORDS, NUM_CORES));
 
     if (!check_result(res, a_plus_b, NUM_BYTES)) {
         print_string("composed multi_add failed!\n");
@@ -79,7 +83,7 @@ void test_add() {
 void test_subtract() {
     print_int(NUM_BITS);
     print_string("-bit subtraction: ");
-    multi_sub_stats(a, b, res, NUM_WORDS);
+    MEASURE(multi_sub(a, b, res, NUM_WORDS));
 
     if (!check_result(res, a_minus_b, NUM_BYTES)) {
         print_string("multi_sub failed!\n");
@@ -89,7 +93,7 @@ void test_subtract() {
 void test_multiply() {
     print_int(NUM_BITS);
     print_string("-bit multiplication: ");
-    multi_mult_stats(a, b, res, NUM_WORDS);
+    MEASURE(multi_mult(a, b, res, NUM_WORDS));
 
     if (!check_result(res, a_times_b, NUM_BYTES * 2)) {
         print_string("multi_mult failed!\n");
@@ -101,7 +105,7 @@ void test_multiply() {
     print_string("-bit composed multiplication: ");
     set_mcompose(NUM_CORES);
     set_mcompose(0);
-    multi_mult_comp_stats(a, b, res, NUM_WORDS, NUM_CORES);
+    MEASURE(multi_mult_comp(a, b, res, NUM_WORDS, NUM_CORES));
 
     if (!check_result(res, a_times_b, NUM_BYTES * 2)) {
         print_string("composed multi_mult failed!\n");
@@ -111,11 +115,11 @@ void test_multiply() {
 void test_aes() {
     struct AES_ctx ctx;
 
-    print_string("AES key expansion: ");
-    AES_init_ctx_stats(&ctx, aes_key);
+    //print_string("AES key expansion: ");
+    AES_init_ctx(&ctx, aes_key);
     
-    print_string("AES encrypting one block: ");
-    AES_ECB_encrypt_stats(&ctx, aes_in);
+    //print_string("AES encrypting one block: ");
+    AES_ECB_encrypt(&ctx, aes_in);
 
     if (!check_result(aes_in, aes_out, 16)) {
         print_string("AES encryption failed!\n");
@@ -142,9 +146,9 @@ int main()
         set_mcompose_mode(MCOMPOSE_MODE_REDUNDANT);
         set_mcompose(NUM_CORES);
         test_aes();
-        print_string("Exiting redundant mode\n");
         set_mcompose(0);
         set_mcompose_mode(MCOMPOSE_MODE_WIDE);
+        print_string("Exited redundant mode\n");
 
     } else {
         multi_xor_comp(a, b, res, NUM_WORDS, NUM_CORES);
