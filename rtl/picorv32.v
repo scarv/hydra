@@ -1267,9 +1267,9 @@ module picorv32 #(
 				instr_jal:
 					decoded_imm <= decoded_imm_j;
 				|{instr_lui, instr_auipc}:
-					decoded_imm <= instr_source_q[31:12] << 12;
+					decoded_imm <= (is_composed_secondary && !is_redundant) ? 0 : (instr_source_q[31:12] << 12);
 				|{instr_jalr, is_lb_lh_lw_lbu_lhu, is_alu_reg_imm}:
-					decoded_imm <= $signed(instr_source_q[31:20]);
+					decoded_imm <= (is_composed_secondary && !is_redundant) ? 0 : $signed(instr_source_q[31:20]);
 				is_beq_bne_blt_bge_bltu_bgeu:
 					decoded_imm <= $signed({instr_source_q[31], instr_source_q[7], instr_source_q[30:25], instr_source_q[11:8], 1'b0});
 				is_sb_sh_sw:

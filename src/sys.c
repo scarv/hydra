@@ -72,6 +72,18 @@ unsigned int get_mcompose() {
     return mcompose;
 }
 
+void wait_for_compose() {
+    asm volatile ("mv a0, zero");
+    asm volatile ("mv a1, zero");
+    asm volatile ("mv a2, zero");
+    asm volatile ("mv a3, zero");
+    asm volatile ("mv a4, zero");
+    asm volatile ("mv a5, zero");
+    asm volatile ("mv a6, zero");
+    asm volatile ("mv a7, zero");
+    asm volatile ("csrwi 0x7c0, 1");
+}
+
 void delay_cycles(unsigned int n_cycles) {
     unsigned int cycles;
     asm volatile ("rdcycle %0" : "=r"(cycles) : : );

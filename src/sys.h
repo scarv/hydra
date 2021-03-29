@@ -14,6 +14,8 @@ unsigned int get_hart_id();
 
 unsigned int get_mcompose();
 
+void wait_for_compose();
+
 void delay_cycles(unsigned int n_cycles);
 
 #define set_mcompose(n) asm volatile ("csrwi 0x7c0, %0" : : "i" (n))

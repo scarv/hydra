@@ -85,8 +85,6 @@ void test_multiply() {
 
     print_int(NUM_BITS);
     print_string("-bit composed multiplication: ");
-    set_mcompose(NUM_CORES);
-    set_mcompose(0);
     MEASURE(multi_mult_comp(x, y, r, NUM_WORDS, NUM_CORES));
 
     if (!check_result(r, x_times_y, NUM_BYTES * 2)) {
@@ -150,11 +148,9 @@ int main()
         print_string("Exited redundant mode\n");
 
     } else {
-        multi_xor_comp(x, y, r, NUM_WORDS, NUM_CORES);
-        multi_add_comp(x, y, r, NUM_WORDS, NUM_CORES);
-        set_mcompose(NUM_CORES);
-        set_mcompose(0);
-        multi_mult_comp(x, y, r, NUM_WORDS, NUM_CORES);
+        wait_for_compose();
+        wait_for_compose();
+        wait_for_compose();
 
         save_regs(regs_context[hart_id]);
         set_mcompose(NUM_CORES);

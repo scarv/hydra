@@ -124,15 +124,13 @@ b_loop_end:
 
 // extern void multi_mult_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
 multi_mult_comp:
-    csrr hart_id, mhartid // Read HARTID
-    bnez  hart_id, multi_mult_sec
+    csrw mcompose, n_cores
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
     add  b_addr_end, n_bytes, b_addr
     mv   res_addr_temp, res_addr
     add  temp, res_addr_temp, n_bytes
-    csrw mcompose, n_cores
 zero_loop_comp:
     beq  res_addr_temp, temp, b_loop_comp
     sw   zero, 0(res_addr_temp)
@@ -165,29 +163,17 @@ a_loop_end_comp:
     add  res_addr, res_addr, bytes_per_word
     add  b_addr, b_addr, bytes_per_word
     j    b_loop_comp
-multi_mult_sec:
-    mv   a_addr, zero
-    mv   bytes_per_word, zero
-    mv   a_addr_temp, zero
-    mv   a_addr_end, zero
-    mv   b_addr_end, b_addr
-    mv   res_addr, zero
-    mv   res_addr_temp, zero
-    mv   temp, zero
-    csrw mcompose, n_cores
 b_loop_end_comp:
     csrw mcompose, zero
     ret
 
 // extern int multi_add_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
 multi_add_comp:
+    csrw mcompose, n_cores
     li   carry, 0
-    csrr hart_id, mhartid // Read HARTID
-    bnez hart_id, multi_add_sec
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
-    csrw mcompose, n_cores
 multi_add_comp_loop:
     beq  a_addr, a_addr_end, multi_add_comp_end
     lw   a_value, 0(a_addr)
@@ -202,10 +188,6 @@ multi_add_comp_loop:
     add b_addr, b_addr, bytes_per_word
     add res_addr, res_addr, bytes_per_word
     j    multi_add_comp_loop
-multi_add_sec:
-    mv   bytes_per_word, zero
-    mv   a_addr_end, a_addr
-    csrw mcompose, n_cores
 multi_add_comp_end:
     csrw mcompose, zero
     mv   carry_out, carry
@@ -230,12 +212,10 @@ multi_xor_end:
 
 // extern void multi_xor_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
 multi_xor_comp:
-    csrr hart_id, mhartid // Read HARTID
-    bnez hart_id, multi_xor_sec
+    csrw mcompose, n_cores
     slli n_bytes, n_words, 2
     slli bytes_per_word, n_cores, 2
     add  a_addr_end, n_bytes, a_addr
-    csrw mcompose, n_cores
 multi_xor_comp_loop:
     beq  a_addr, a_addr_end, multi_xor_comp_end
     lw   a_value, 0(a_addr)
@@ -246,10 +226,6 @@ multi_xor_comp_loop:
     add b_addr, b_addr, bytes_per_word
     add res_addr, res_addr, bytes_per_word
     j    multi_xor_comp_loop
-multi_xor_sec:
-    mv   bytes_per_word, zero
-    mv   a_addr_end, a_addr
-    csrw mcompose, n_cores
 multi_xor_comp_end:
     csrw mcompose, zero
     ret
