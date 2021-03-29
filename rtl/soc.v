@@ -235,10 +235,8 @@ module soc #(
 					mem_ready[mem_arb_counter] <= 1;
 				end
                 mem_write[mem_arb_counter] && mem_addr_high == 4'h2: begin
-					if (mem_arb_counter == 0) begin
-						tx_data   <= mem_wdata[7:0];
-						tx_send   <= 1;
-					end
+					tx_data   <= mem_wdata[7:0];
+					tx_send   <= 1;
 					mem_ready[mem_arb_counter] <= 1;
 				end
 			endcase

@@ -8,16 +8,13 @@ module top (
 );
 
 	reg slow_clk = 0;
-	reg counter = 0;
 
 	always @(posedge clk) begin
-		counter <= counter + 1;
-		if (counter == 1'b0)
-			slow_clk = !slow_clk;
+		slow_clk = !slow_clk;
 	end
 
 	soc #(
-		.CLK_MHZ(25)
+		.CLK_MHZ(50)
 	) composed_soc (
 		.clk(slow_clk),
 		.leds(leds),

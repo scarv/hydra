@@ -19,10 +19,10 @@
 
 /** Use a         Un-integrated (i.e.. separate multiplication then reduction) Montgomery multiplication implementation.
   */
-#define LIBSCARV_CONF_MRZ_MUL_REDC               0
+#define LIBSCARV_CONF_MRZ_MUL_REDC               1
 /** Use a  Coarsely Integrated Operand Scanning (CIOS)                         Montgomery multiplication implementation.
   */
-#define LIBSCARV_CONF_MRZ_MUL_CIOS               1
+#define LIBSCARV_CONF_MRZ_MUL_CIOS               0
 
 /* ------------------------------------------------------------------------- */
 

@@ -152,6 +152,18 @@ int main()
         wait_for_compose();
         wait_for_compose();
 
+        wait_for_compose();
+        for (int i = NUM_WORDS - 1; i >= 0; i--) {
+            for (int j = (BITSOF(limb_t) - 1); j >= 0; j--) {
+                wait_for_compose();
+
+                if ((y[i] >> j) & 1) {
+                    wait_for_compose();
+                }
+            }
+        }
+        wait_for_compose();
+
         save_regs(regs_context[hart_id]);
         set_mcompose(NUM_CORES);
         load_regs(regs_context[0]);
