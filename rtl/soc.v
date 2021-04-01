@@ -30,7 +30,7 @@ module soc #(
 	// -------------------------------
 	// Memory/IO Interface
 
-	localparam MEM_WORDS = 8192;
+	localparam MEM_WORDS = 16384;
 	localparam MEM_BITS = $clog2(MEM_WORDS);
 	reg [31:0] memory [0:MEM_WORDS-1];
 	initial $readmemh(`FIRMWARE, memory);
