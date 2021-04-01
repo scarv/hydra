@@ -1345,7 +1345,9 @@ module picorv32 #(
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
 			if (is_composed_secondary && !is_redundant)
-				alu_add_sub <= instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
+				alu_add_sub <= instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, mcompose_left_carry_in[0]}) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
+			else if (is_composed_primary && !is_redundant)
+				alu_add_sub <= instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, 1'b1}) : (reg_op1 + reg_op2);
 			else
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
@@ -1365,7 +1367,9 @@ module picorv32 #(
 	end else begin
 		always @* begin
 			if (is_composed_secondary && !is_redundant)
-				alu_add_sub = instr_sub ? reg_op1 + ~reg_op2 + mcompose_left_carry_in[0] : reg_op1 + reg_op2 + mcompose_left_carry_in[0];
+				alu_add_sub = instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, mcompose_left_carry_in[0]}) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
+			else if (is_composed_primary && !is_redundant)
+				alu_add_sub = instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, 1'b1}) : (reg_op1 + reg_op2);
 			else
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_lts = $signed(reg_op1) < $signed(reg_op2);
@@ -1446,11 +1450,13 @@ module picorv32 #(
 
 		mcompose_right_carry_out = 0;
 		if (is_composed && !is_redundant) begin
-			if (instr_beq) begin
-				if (SECONDARY_CORE && HART_ID == mcompose_in - 1)
+			if (instr_beq || instr_bne) begin
+				if (SECONDARY_CORE && HART_ID == mcompose_in - 1) begin
 					mcompose_right_carry_out[0] = (reg_op1 == reg_op2);
-				else if (SECONDARY_CORE)
+				end
+				else if (SECONDARY_CORE) begin
 					mcompose_right_carry_out[0] = mcompose_right_carry_in[0] && (reg_op1 == reg_op2);
+				end
 			end else
 				mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
 
@@ -1961,7 +1967,7 @@ module picorv32 #(
 							alu_wait <= 1;
 						else
 							mem_do_rinst <= mem_do_prefetch;
-						cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
+						cpu_state <= cpu_state_exec;
 					end
 					ENABLE_IRQ && ENABLE_IRQ_QREGS && instr_getq: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -2035,7 +2041,7 @@ module picorv32 #(
 							alu_wait <= 1;
 						else
 							mem_do_rinst <= mem_do_prefetch;
-						cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
+						cpu_state <= cpu_state_exec;
 					end
 					default: begin
 						`debug($display("LD_RS1: %2d 0x%08x", decoded_rs1, cpuregs_rs1);)
@@ -2063,7 +2069,7 @@ module picorv32 #(
 										alu_wait <= 1;
 									end else
 										mem_do_rinst <= mem_do_prefetch;
-									cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
+									cpu_state <= cpu_state_exec;
 								end
 							endcase
 						end else
@@ -2113,32 +2119,36 @@ module picorv32 #(
 							alu_wait <= 1;
 						end else
 							mem_do_rinst <= mem_do_prefetch;
-						cpu_state <= (is_composed_secondary && is_uncomposable) ? cpu_state_composed : cpu_state_exec;
+						cpu_state <= cpu_state_exec;
 					end
 				endcase
 			end
 
 			cpu_state_exec: begin
-				reg_out <= reg_pc + decoded_imm;
-				if ((TWO_CYCLE_ALU || TWO_CYCLE_COMPARE) && (alu_wait || alu_wait_2)) begin
-					mem_do_rinst <= mem_do_prefetch && !alu_wait_2;
-					alu_wait <= alu_wait_2;
-				end else
-				if (is_beq_bne_blt_bge_bltu_bgeu) begin
-					latched_rd <= 0;
-					latched_store <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
-					latched_branch <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
-					if (mem_done)
+				if (!is_composed_secondary || !is_uncomposable) begin
+					reg_out <= reg_pc + decoded_imm;
+					if ((TWO_CYCLE_ALU || TWO_CYCLE_COMPARE) && (alu_wait || alu_wait_2)) begin
+						mem_do_rinst <= mem_do_prefetch && !alu_wait_2;
+						alu_wait <= alu_wait_2;
+					end else
+					if (is_beq_bne_blt_bge_bltu_bgeu) begin
+						latched_rd <= 0;
+						latched_store <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
+						latched_branch <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
+						if (mem_done)
+							cpu_state <= cpu_state_fetch_or_composed;
+						if (TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0) begin
+							decoder_trigger <= 0;
+							set_mem_do_rinst = 1;
+						end
+					end else begin
+						latched_branch <= instr_jalr;
+						latched_store <= 1;
+						latched_stalu <= 1;
 						cpu_state <= cpu_state_fetch_or_composed;
-					if (TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0) begin
-						decoder_trigger <= 0;
-						set_mem_do_rinst = 1;
 					end
 				end else begin
-					latched_branch <= instr_jalr;
-					latched_store <= 1;
-					latched_stalu <= 1;
-					cpu_state <= cpu_state_fetch_or_composed;
+					cpu_state <= cpu_state_composed;
 				end
 			end
 
