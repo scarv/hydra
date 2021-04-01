@@ -16,4 +16,8 @@
 // r = x * \rho^{-1} \pmod{N}
 extern void mrz_red( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x );
 
+extern void mrz_red_asm( int l_N, const mrz_t N, limb_t omega, mrz_t r, const mrz_t x );
+
+extern void mrz_red_asm_comp( int l_N, const mrz_t N, const limb_t *omega, mrz_t r, const mrz_t x, int n_cores );
+
 #endif
