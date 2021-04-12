@@ -31,9 +31,13 @@ typedef struct{
 
 extern void mrz_precomp( mrz_ctx_t* ctx, const limb_t* N, int l_N );
 
-extern void mrz_precomp_asm( mrz_ctx_t* ctx, const limb_t* N, int l_N );
+extern void mrz_precomp_omega( limb_t* omega, const limb_t* N );
 
-extern void mrz_precomp_asm_comp( mrz_ctx_t* ctx, const limb_t* N, int l_N, int n_cores );
+extern void mrz_precomp_omega_comp( limb_t* omega, const limb_t* N, int n_cores );
+
+extern void mrz_precomp_rho( limb_t* rho_0, limb_t* rho_1, limb_t* rho_2, const limb_t* N, int l_N );
+
+extern void mrz_precomp_rho_comp( limb_t* rho_0, limb_t* rho_1, limb_t* rho_2, const limb_t* N, int l_N, int n_cores );
 
 #include <scarv/mp/mrz/mrz_red.h>
 

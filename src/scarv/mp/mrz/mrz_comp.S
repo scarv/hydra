@@ -11,32 +11,19 @@
 
 .section .text
 
-.func    mrz_precomp_asm_comp
-.global  mrz_precomp_asm_comp
-
-#define size_of_mrz (LIBSCARV_CONF_MRZ_MAX_LIMBS*4)
-#define size_of_ctx (size_of_mrz*4+8)
-#define N_offset 0
-#define l_N_offset size_of_mrz
-#define rho_0_offset (size_of_mrz+4)
-#define rho_1_offset (size_of_mrz*2+4)
-#define rho_2_offset (size_of_mrz*3+4)
-#define omega_offset (size_of_mrz*4+4)
-
-#define ctx s0
-#define N   a1
-#define l_N a2
+.func    mrz_precomp_rho_comp
+.global  mrz_precomp_rho_comp
 
 #define mcompose 0x7c0
 #define n_cores  s3
 #define one      s4
 #define bytes_per_word t6
 
-// void mrz_precomp_asm_comp( mrz_ctx_t* ctx, const limb_t* N, int l_N, int n_cores );
+// void mrz_precomp_rho_comp( limb_t* rho_0, limb_t* rho_1, limb_t* rho_2, const limb_t* N, int l_N, int n_cores );
 
-mrz_precomp_asm_comp:
-  csrw mcompose, a3
-  slli bytes_per_word, a3, 2
+mrz_precomp_rho_comp:
+  csrw mcompose, a5
+  slli bytes_per_word, a5, 2
   sub  sp, sp, bytes_per_word
   sw   s0, 0(sp)
   sub  sp, sp, bytes_per_word
@@ -47,101 +34,47 @@ mrz_precomp_asm_comp:
   sw   s3, 0(sp)
   sub  sp, sp, bytes_per_word
   sw   s4, 0(sp)
-  mv   s0, a0
   mv   s1, ra
-  mv   n_cores, a3
+  mv   n_cores, a5
   li   one, 1
 
-  slli t0, l_N, 2
-  add  t0, t0, ctx
-  mv   t1, ctx
-.copy_N:
-  beq  t1, t0, .copy_N_end
-  lw   t3, 0(N)
-  sw   t3, 0(t1)
-  add  t1, t1, bytes_per_word
-  add  N, N, bytes_per_word
-  j    .copy_N
-.copy_N_end:
-
-  addi t0, zero, (4*size_of_mrz+4)
-  mul  t0, t0, n_cores
-  add  t0, t0, ctx
-.zero_struct:
-  beq  t1, t0, .zero_struct_end
+  li   t0, 1
+  sw   t0, 0(a0)
+  sw   t0, 0(a1)
+  slli a4, a4, 2
+  add  t0, a0, a4
+  add  t1, a1, bytes_per_word
+  add  a0, a0, bytes_per_word
+.rho_0_loop:
+  beq  a0, t0, .rho_0_loop_end
+  sw   zero, 0(a0)
   sw   zero, 0(t1)
+  add  a0, a0, bytes_per_word
   add  t1, t1, bytes_per_word
-  j    .zero_struct
-.zero_struct_end:
+  j    .rho_0_loop
+.rho_0_loop_end:
 
-  addi t0, zero, l_N_offset
-  mul  t0, t0, n_cores
-  add  t0, t0, ctx
-  sw   l_N, 0(t0)
-
-  addi t0, zero, rho_0_offset
-  mul  t0, t0, n_cores
-  add  t0, t0, ctx
-  sw   one, 0(t0)
-  addi t0, zero, rho_1_offset
-  mul  t0, t0, n_cores
-  add  t0, t0, ctx
-  sw   one, 0(t0)
-
-  mv   s2, l_N
-  slli s2, s2, 5
-  li   a5, rho_1_offset
-  mul  a5, a5, n_cores
-  add  a5, a5, ctx
-  slli a6, l_N, 2
-  add  a6, a6, a5
+  slli s2, a4, 3
+  mv   a5, a1
+  add  a6, a4, a5
   jal  .rho_loop
 
-  li   t0, rho_2_offset
-  mul  t0, t0, n_cores
-  add  t0, t0, ctx
-  mv   t1, t0
-  li   t2, rho_1_offset
-  mul  t2, t2, n_cores
-  add  t2, t2, ctx
+  mv   t0, a2
+  mv   t2, a1
+  add  t1, a1, a4
 .copy_rho:
   beq  t2, t1, .copy_rho_end
   lw   t3, 0(t2)
   sw   t3, 0(t0)
-  addi t0, t0, 4
-  addi t2, t2, 4
+  add  t0, t0, bytes_per_word
+  add  t2, t2, bytes_per_word
   j    .copy_rho
 .copy_rho_end:
 
-  mv   s2, l_N
-  slli s2, s2, 5
-  li   a5, rho_2_offset
-  mul  a5, a5, n_cores
-  add  a5, a5, ctx
-  slli a6, l_N, 2
-  add  a6, a6, a5
+  slli s2, a4, 3
+  mv   a5, a2
+  add  a6, a4, a5
   jal  .rho_loop
-
-  li   t1, 1
-  lw   t2, N_offset(ctx)
-  li   t0, 32
-  mul  t0, t0, n_cores
-  sub  t0, t0, one
-.omega_loop:
-  beqz t0, .omega_loop_end
-
-  mul  t1, t1, t1
-  mul  t1, t1, t2
-
-  sub  t0, t0, one
-  j    .omega_loop
-.omega_loop_end:
-
-  neg  t1, t1
-  addi t0, zero, omega_offset
-  mul  t0, t0, n_cores
-  add  t0, t0, ctx
-  sw   t1, 0(t0)
 
   mv   ra, s1
   slli bytes_per_word, n_cores, 2
@@ -159,7 +92,7 @@ mrz_precomp_asm_comp:
   ret
 
 .rho_loop:
-    beqz s2, .rho_loop_end
+  beqz s2, .rho_loop_end
 
   mv   t1, a5
   li   t2, 0
@@ -181,11 +114,10 @@ mrz_precomp_asm_comp:
 
   mv   t1, a6
   li   t2, 1
-  slli t3, l_N, 2
-  add  t3, t3, ctx
-  sub  t3, t3, bytes_per_word
+  add  t3, a4, a3
 .rho_cmp:
   sub  t1, t1, bytes_per_word
+  sub  t3, t3, bytes_per_word
   beq  t1, a5, .rho_cmp_end
   lw   t4, 0(t1)
   lw   t5, 0(t3)
@@ -198,10 +130,10 @@ mrz_precomp_asm_comp:
 .rho_do_sub:
   li   t2, 0
   mv   t1, a5
-  mv   a7, ctx
-  add  a4, a6, bytes_per_word
+  mv   a7, a3
+  add  a0, a6, bytes_per_word
 .rho_sub:
-  beq  t1, a4, .rho_sub_end
+  beq  t1, a0, .rho_sub_end
   lw   t0, 0(t1)
   lw   t3, 0(a7)
   sub  t4, t0, t3
@@ -218,6 +150,38 @@ mrz_precomp_asm_comp:
   sub  s2, s2, one
   j    .rho_loop
 .rho_loop_end:
+  ret
+
+.endfunc
+
+
+.func    mrz_precomp_omega_comp
+.global  mrz_precomp_omega_comp
+
+// void mrz_precomp_omega_comp( limb_t* omega, const limb_t* N, int n_cores );
+
+mrz_precomp_omega_comp:
+  csrw mcompose, a2
+  li   t3, 1
+  li   t1, 1
+  li   t0, 32
+  lw   t2, 0(a1)
+  mul  t0, t0, a2
+  sub  t0, t0, t3
+.omega_loop:
+  beqz t0, .omega_loop_end
+
+  mul  t1, t1, t1
+  mul  t1, t1, t2
+
+  sub  t0, t0, t3
+  j    .omega_loop
+.omega_loop_end:
+
+  neg  t1, t1
+  sw   t1, 0(a0)
+
+  csrw mcompose, zero
   ret
 
 .endfunc

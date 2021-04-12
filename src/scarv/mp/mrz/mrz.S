@@ -11,102 +11,14 @@
 
 .section .text
 
-.func    mrz_precomp_asm
-.global  mrz_precomp_asm
+.func    mrz_precomp_omega
+.global  mrz_precomp_omega
 
-#define size_of_mrz (LIBSCARV_CONF_MRZ_MAX_LIMBS*4)
-#define size_of_ctx (size_of_mrz*4+8)
-#define N_offset 0
-#define l_N_offset size_of_mrz
-#define rho_0_offset (size_of_mrz+4)
-#define rho_1_offset (size_of_mrz*2+4)
-#define rho_2_offset (size_of_mrz*3+4)
-#define omega_offset (size_of_mrz*4+4)
+// void mrz_precomp_omega( limb_t* omega, const limb_t* N );
 
-#define ctx s0
-#define N   a1
-#define l_N a2
-
-// void mrz_precomp_asm( mrz_ctx_t* ctx, const limb_t* N, int l_N );
-
-mrz_precomp_asm:
-  addi sp, sp, -12
-  sw   s0, 0(sp)
-  sw   s1, 4(sp)
-  sw   s2, 8(sp)
-  mv   s0, a0
-  mv   s1, ra
-
-  slli t0, l_N, 2
-  add  t0, t0, ctx
-  mv   t1, ctx
-.copy_N:
-  beq  t1, t0, .copy_N_end
-  lw   t3, 0(N)
-  sw   t3, 0(t1)
-  addi t1, t1, 4
-  addi N, N, 4
-  j    .copy_N
-.copy_N_end:
-
-  addi t0, ctx, (4*size_of_mrz+4)
-.zero_struct:
-  beq  t1, t0, .zero_struct_end
-  sw   zero, 0(t1)
-  addi t1, t1, 4
-  j    .zero_struct
-.zero_struct_end:
-
-  sw   l_N, l_N_offset(ctx)
-
-  li   t0, 1
-  sw   t0, rho_0_offset(ctx)
-  sw   t0, rho_1_offset(ctx)
-
-  lw   s2, l_N_offset(ctx)
-  slli s2, s2, 5
-.rho_1_loop:
-  beqz s2, .rho_1_loop_end
-
-  mv   a0, ctx
-  addi a1, ctx, rho_1_offset
-  mv   a2, a1
-  mv   a3, a1
-  jal  mrz_add
-
-  addi s2, s2, -1
-  j    .rho_1_loop
-.rho_1_loop_end:
-
-  addi t0, ctx, rho_2_offset
-  mv   t1, t0
-  addi t2, ctx, rho_1_offset
-.copy_rho:
-  beq  t2, t1, .copy_rho_end
-  lw   t3, 0(t2)
-  sw   t3, 0(t0)
-  addi t0, t0, 4
-  addi t2, t2, 4
-  j    .copy_rho
-.copy_rho_end:
-
-  lw   s2, l_N_offset(ctx)
-  slli s2, s2, 5
-.rho_2_loop:
-  beqz s2, .rho_2_loop_end
-
-  mv   a0, ctx
-  addi a1, ctx, rho_2_offset
-  mv   a2, a1
-  mv   a3, a1
-  jal  mrz_add
-
-  addi s2, s2, -1
-  j    .rho_2_loop
-.rho_2_loop_end:
-
+mrz_precomp_omega:
   li   t1, 1
-  lw   t2, N_offset(ctx)
+  lw   t2, 0(a1)
   li   t0, 31
 .omega_loop:
   beqz t0, .omega_loop_end
@@ -119,13 +31,99 @@ mrz_precomp_asm:
 .omega_loop_end:
 
   neg  t1, t1
-  sw   t1, omega_offset(ctx)
+  sw   t1, 0(a0)
 
-  mv   ra, s1
+  ret
+
+.endfunc
+
+
+.func    mrz_precomp_rho
+.global  mrz_precomp_rho
+
+// void mrz_precomp_rho( limb_t* rho_0, limb_t* rho_1, limb_t* rho_2, const limb_t* N, int l_N );
+
+mrz_precomp_rho:
+  addi sp, sp, -24
+  sw   s0, 0(sp)
+  sw   s1, 4(sp)
+  sw   s2, 8(sp)
+  sw   s3, 12(sp)
+  sw   s4, 16(sp)
+  sw   s5, 20(sp)
+
+  mv   s0, ra
+  mv   s1, a1
+  mv   s2, a2
+  mv   s3, a3
+  mv   s4, a4
+
+  li   t0, 1
+  sw   t0, 0(a0)
+  sw   t0, 0(a1)
+  slli s4, s4, 2
+  add  t0, a0, s4
+  add  t1, a1, 4
+  addi a0, a0, 4
+.rho_0_loop:
+  beq  a0, t0, .rho_0_loop_end
+  sw   zero, 0(a0)
+  sw   zero, 0(t1)
+  addi a0, a0, 4
+  addi t1, t1, 4
+  j    .rho_0_loop
+.rho_0_loop_end:
+
+  slli s5, s4, 3
+.rho_1_loop:
+  beqz s5, .rho_1_loop_end
+
+  mv   a0, s3
+  mv   a1, s1
+  mv   a2, s1
+  mv   a3, s1
+  srli a4, s4, 2
+  jal  mrz_add_asm
+
+  addi s5, s5, -1
+  j    .rho_1_loop
+.rho_1_loop_end:
+
+  mv   t1, s2
+  add  t2, s2, s4
+.copy_rho:
+  beq  t2, t1, .copy_rho_end
+  lw   t3, 0(s1)
+  sw   t3, 0(t1)
+  addi t1, t1, 4
+  addi s1, s1, 4
+  j    .copy_rho
+.copy_rho_end:
+
+  slli s5, s4, 3
+.rho_2_loop:
+  beqz s5, .rho_2_loop_end
+
+  mv   a0, s3
+  mv   a1, s2
+  mv   a2, s2
+  mv   a3, s2
+  srli a4, s4, 2
+  jal  mrz_add_asm
+
+  addi s5, s5, -1
+  j    .rho_2_loop
+.rho_2_loop_end:
+
+  mv   ra, s0
+
   lw   s0, 0(sp)
   lw   s1, 4(sp)
   lw   s2, 8(sp)
-  addi sp, sp, 12
+  lw   s3, 12(sp)
+  lw   s4, 16(sp)
+  lw   s5, 20(sp)
+  addi sp, sp, 24
   ret
 
 .endfunc
