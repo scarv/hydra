@@ -16,4 +16,6 @@
 // r = x^y \pmod{N}
 extern void mrz_exp( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x, const limb_t* y, int l_y );
 
+extern void mrz_exp_comp( const mrz_ctx_t* ctx, const limb_t* omega, mrz_t r, const mrz_t x, const limb_t* y, int l_y, int n_cores );
+
 #endif

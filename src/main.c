@@ -104,14 +104,14 @@ void test_exp() {
     memcpy(omega, omega_N, NUM_CORES << 2);
     
     print_string("Computing omega...\n");
-    //mrz_precomp_omega_comp(omega, (limb_t*)N, NUM_CORES);
+    mrz_precomp_omega_comp(omega, (limb_t*)N, NUM_CORES);
 
     if (!check_result(omega, omega_N, NUM_CORES << 2)) {
         print_string("omega doesn't match!\n");
     }
 
     print_string("Computing rho...\n");
-    //mrz_precomp_rho_comp(ctx.rho_0, ctx.rho_1, ctx.rho_2, (limb_t*)N, NUM_WORDS, NUM_CORES);
+    mrz_precomp_rho_comp(ctx.rho_0, ctx.rho_1, ctx.rho_2, (limb_t*)N, NUM_WORDS, NUM_CORES);
 
     if (!check_result(ctx.rho_0, rho_0, NUM_BYTES)) {
         print_string("rho_0 doesn't match!\n");
@@ -127,29 +127,12 @@ void test_exp() {
 
     print_string("Computing exponentiation...\n");
 
-    mrz_mul_asm(NUM_WORDS, ctx.N, ctx.omega, r, x, ctx.rho_2);
-    MEASURE(mrz_exp(&ctx, (limb_t*)r, (limb_t*)r, (limb_t*)y, NUM_WORDS));
-    mrz_mul_asm(NUM_WORDS, ctx.N, ctx.omega, r, r, ctx.rho_0);
+    mrz_mul_comp(NUM_WORDS, ctx.N, omega, (limb_t*)r, (limb_t*)x, ctx.rho_2, NUM_CORES);
+    MEASURE(mrz_exp_comp(&ctx, omega, (limb_t*)r, (limb_t*)r, (limb_t*)y, NUM_WORDS, NUM_CORES));
+    mrz_mul_comp(NUM_WORDS, ctx.N, omega, (limb_t*)r, (limb_t*)r, ctx.rho_0, NUM_CORES);
 
     if (!check_result(r, x_exp_y_mod_N, NUM_BYTES)) {
         print_string("mrz_exp failed!\n");
-        print_hex(r[15]); print_char(' ');
-        print_hex(r[14]); print_char(' ');
-        print_hex(r[13]); print_char(' ');
-        print_hex(r[12]); print_char(' ');
-        print_hex(r[11]); print_char(' ');
-        print_hex(r[10]); print_char(' ');
-        print_hex(r[9]); print_char(' ');
-        print_hex(r[8]); print_char(' ');
-        print_hex(r[7]); print_char(' ');
-        print_hex(r[6]); print_char(' ');
-        print_hex(r[5]); print_char(' ');
-        print_hex(r[4]); print_char(' ');
-        print_hex(r[3]); print_char(' ');
-        print_hex(r[2]); print_char(' ');
-        print_hex(r[1]); print_char(' ');
-        print_hex(r[0]); print_char('\n');
-
     }
 }
 
@@ -174,10 +157,10 @@ int main()
     if (hart_id == 0) {
         print_string("Hello from core #0\n");
 
-        //test_xor();
-        //test_add();
-        //test_subtract();
-        //test_multiply();
+        test_xor();
+        test_add();
+        test_subtract();
+        test_multiply();
         test_exp();
 
         save_regs(regs_context[0]);
@@ -199,6 +182,17 @@ int main()
 
         wait_for_compose(); // mrz_precomp_omega
         wait_for_compose(); // mrz_precomp_rho
+
+        wait_for_compose(); // mrz_mul
+        for (int i = NUM_WORDS - 1; i >= 0; i--) {
+            for (int j = (BITSOF(limb_t) - 1); j >= 0; j--) {
+                wait_for_compose(); // mrz_mul
+                if ((y[i] >> j) & 1) {
+                    wait_for_compose(); // mrz_mul
+                }
+            }
+        }
+        wait_for_compose(); // mrz_mul
 
         save_regs(regs_context[hart_id]);
         set_mcompose(NUM_CORES);
