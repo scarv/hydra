@@ -16,4 +16,8 @@
 // r = x * y * \rho^{-1} \pmod{N}
 extern void mrz_mul( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x, const mrz_t y );
 
+extern void mrz_mul_comp( int l_N, const mrz_t N, const limb_t *omega, mrz_t r, const mrz_t x, const mrz_t y, int n_cores );
+
+extern void mrz_mul_asm( int l_N, const mrz_t N, limb_t omega, mrz_t r, const mrz_t x, const mrz_t y );
+
 #endif
