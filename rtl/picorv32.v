@@ -235,6 +235,8 @@ module picorv32 #(
 	reg        mcompose_ready;
 	reg        mcompose_decoder_trigger;
 	reg        mcompose_launch_insn;
+	reg [31:0] mcompose_shadow_pc;
+	reg        mcompose_synced_pc;
 
 	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0);
 	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready) && (mcompose_in > HART_ID);
@@ -1471,7 +1473,9 @@ module picorv32 #(
 			else
 				mcompose_instr_out = mem_rdata_q;
 
-			if (is_redundant && instr_rdinstr)
+			if (is_redundant && cpu_state == cpu_state_fetch)
+				mcompose_reg_out = reg_pc;
+			else if (is_redundant && instr_rdinstr)
 				mcompose_reg_out = count_instr[31:0];
 			else if (is_redundant && instr_rdinstrh)
 				mcompose_reg_out = count_instr[63:32];
@@ -1481,8 +1485,8 @@ module picorv32 #(
 				mcompose_reg_out = count_cycle[63:32];
 			else if (is_redundant && instr_rdmhartid)
 				mcompose_reg_out = HART_ID;
-			else if (is_redundant)
-				mcompose_reg_out = reg_pc;
+			else if (instr_wrmcompose || instr_wrmcomposei)
+				mcompose_reg_out = reg_next_pc;
 			else
 				mcompose_reg_out = reg_op1;
 
@@ -1736,18 +1740,45 @@ module picorv32 #(
 				latched_rd <= decoded_rd;
 				latched_compr <= compressed_instr;
 
+				current_pc = mcompose_shadow_pc;
+
+				(* parallel_case *)
+				case (1'b1)
+					latched_branch: begin
+						current_pc = latched_store ? (latched_stalu ? alu_out_q : reg_out) & ~1 : mcompose_shadow_pc;
+						`debug($display("ST_RD:  %2d 0x%08x, BRANCH 0x%08x", latched_rd, reg_pc + (latched_compr ? 2 : 4), current_pc);)
+					end
+					latched_store && !latched_branch: begin
+						`debug($display("ST_RD:  %2d 0x%08x", latched_rd, latched_stalu ? alu_out_q : reg_out);)
+					end
+				endcase
+
+				reg_pc <= current_pc;
+				mcompose_shadow_pc <= current_pc;
+
 				if (mcompose_right_ready_in && mcompose_left_ready_in) begin
 					if (mcompose_launch_insn) begin
+						if (!mcompose_synced_pc) begin
+							mcompose_shadow_pc <= mcompose_reg_in;
+							mcompose_synced_pc <= 1;
+						end
+
 						mcompose_launch_insn <= 0;
 						`debug($display("-- %-0t", $time);)
 						if (ENABLE_COUNTERS) begin
 							count_instr <= count_instr + 1;
 							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 						end
+
+						mcompose_shadow_pc <= current_pc + 4;
 						if (instr_jal && is_redundant) begin
 							latched_branch <= 1;
+							mcompose_shadow_pc <= current_pc + decoded_imm_j;
 						end
-						if (is_redundant && prev_latched_store && cpuregs_prev_wrdata != mcompose_redundant_in) begin
+						if (is_redundant && mcompose_synced_pc && reg_pc != mcompose_reg_in) begin
+							cpu_state <= cpu_state_trap;
+							$display("bad pc  %x != %x", reg_pc, mcompose_reg_in);
+						end else if (is_redundant && prev_latched_store && cpuregs_prev_wrdata != mcompose_redundant_in) begin
 							cpu_state <= cpu_state_trap;
 							$display("bad reg %d  %x != %x", latched_rd, cpuregs_prev_wrdata, mcompose_redundant_in);
 						end else begin
@@ -1937,6 +1968,7 @@ module picorv32 #(
 					SECONDARY_CORE && instr_wrmcompose: begin
 						mcompose_ready <= (cpuregs_rs1 != 0);
 						cpu_state <= (cpuregs_rs1 != 0) ? cpu_state_composed : cpu_state_fetch;
+						mcompose_synced_pc <= 0;
 					end
 					instr_wrmcompose_mode: begin
 						reg_out <= mcompose_mode;
@@ -1953,6 +1985,7 @@ module picorv32 #(
 					SECONDARY_CORE && instr_wrmcomposei: begin
 						mcompose_ready <= (decoded_rs1 != 0);
 						cpu_state <= (decoded_rs1 != 0) ? cpu_state_composed : cpu_state_fetch;
+						mcompose_synced_pc <= 0;
 					end
 					instr_wrmcompose_modei: begin
 						reg_out <= mcompose_mode;
