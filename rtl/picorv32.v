@@ -1347,14 +1347,14 @@ module picorv32 #(
 	generate if (TWO_CYCLE_ALU) begin
 		always @(posedge clk) begin
 			if (is_composed_secondary && !is_redundant)
-				alu_add_sub <= instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, mcompose_left_carry_in[0]}) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
+				alu_add_sub <= instr_sub ? (reg_op1 - reg_op2 - mcompose_left_carry_in[0]) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
 			else if (is_composed_primary && !is_redundant)
-				alu_add_sub <= instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, 1'b1}) : (reg_op1 + reg_op2);
+				alu_add_sub <= instr_sub ? (reg_op1 - reg_op2) : (reg_op1 + reg_op2);
 			else
 				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
 			if (is_composed_primary && !is_redundant) begin
-				alu_ltu <= mcompose_left_carry_in[0];
+				alu_ltu <= mcompose_right_carry_in[0] ? (reg_op1 < reg_op2) : mcompose_right_carry_in[1];
 				alu_eq <= (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
 			end else if (is_composed_secondary && !is_redundant) begin
 				alu_ltu <= 0;
@@ -1369,14 +1369,14 @@ module picorv32 #(
 	end else begin
 		always @* begin
 			if (is_composed_secondary && !is_redundant)
-				alu_add_sub = instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, mcompose_left_carry_in[0]}) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
+				alu_add_sub = instr_sub ? (reg_op1 - reg_op2 - mcompose_left_carry_in[0]) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
 			else if (is_composed_primary && !is_redundant)
-				alu_add_sub = instr_sub ? ({1'b0, reg_op1} + {1'b0, ~reg_op2} + {32'b0, 1'b1}) : (reg_op1 + reg_op2);
+				alu_add_sub = instr_sub ? (reg_op1 - reg_op2) : (reg_op1 + reg_op2);
 			else
 				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
 			alu_lts = $signed(reg_op1) < $signed(reg_op2);
 			if (is_composed_primary && !is_redundant) begin
-				alu_ltu = mcompose_left_carry_in[0];
+				alu_ltu = mcompose_right_carry_in[0] ? (reg_op1 < reg_op2) : mcompose_right_carry_in[1];
 				alu_eq = (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
 			end else if (is_composed_secondary && !is_redundant) begin
 				alu_ltu = 0;
@@ -1433,12 +1433,7 @@ module picorv32 #(
 
 		mcompose_left_carry_out = 0;
 		if (is_composed && !is_redundant) begin
-			if (is_sltiu_bltu_sltu) begin
-				if (mcompose_in - 1 == HART_ID)
-					mcompose_left_carry_out[0] = (reg_op1 == reg_op2) ? mcompose_left_carry_in[0] : (reg_op1 < reg_op2);
-				else
-					mcompose_left_carry_out[0] = reg_op1 < reg_op2;
-			end else if (instr_any_mul) begin
+			if (instr_any_mul) begin
 				mcompose_left_carry_out[0] = pcpi_mul_rs1_lsb_out;
 				mcompose_left_carry_out[1] = pcpi_mul_rs2_bit31_out;
 				mcompose_left_carry_out[2] = pcpi_mul_rs2_bit63_out;
@@ -1452,17 +1447,19 @@ module picorv32 #(
 
 		mcompose_right_carry_out = 0;
 		if (is_composed && !is_redundant) begin
-			if (instr_beq || instr_bne) begin
+			if (instr_beq || instr_bne || is_sltiu_bltu_sltu) begin
 				if (SECONDARY_CORE && HART_ID == mcompose_in - 1) begin
 					mcompose_right_carry_out[0] = (reg_op1 == reg_op2);
+					mcompose_right_carry_out[1] = (reg_op1 < reg_op2);
 				end
 				else if (SECONDARY_CORE) begin
 					mcompose_right_carry_out[0] = mcompose_right_carry_in[0] && (reg_op1 == reg_op2);
+					mcompose_right_carry_out[1] = mcompose_right_carry_in[0] ? (reg_op1 < reg_op2) : mcompose_right_carry_in[1];
 				end
-			end else
+			end else begin
 				mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
-
-			mcompose_right_carry_out[1] = pcpi_mul_rs1_bit32_out;
+				mcompose_right_carry_out[1] = pcpi_mul_rs1_bit32_out;
+			end
 		end else if (SECONDARY_CORE) begin
 			mcompose_right_carry_out = mcompose_right_carry_in;
 		end
