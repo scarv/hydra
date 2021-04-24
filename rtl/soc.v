@@ -66,6 +66,9 @@ module soc #(
 	wire [N_CORES*4 - 1 : 0] dummy;
 	wire [N_CORES-1 : 0] mcompose_right_ready;
 	wire [N_CORES-1 : 0] mcompose_left_ready;
+	wire [N_CORES-2 : 0] fault_in;
+	wire irq_in;
+	assign irq_in = |fault_in && (mcompose > 0);
 	assign mcompose_right_ready[N_CORES-1] = 1;
 
 	localparam LEFT_CARRY_BITS = 5;
@@ -86,11 +89,13 @@ module soc #(
 		.ENABLE_MCOMPOSE(1),
 		.ENABLE_MUL(M_EXTENSION),
 		.ENABLE_DIV(M_EXTENSION),
+		.ENABLE_IRQ(1),
+		.LATCHED_IRQ(32'h00000000),
 		.LATCHED_MEM_RDATA(1),
 		.TWO_STAGE_SHIFT(0),
 		.TWO_CYCLE_ALU(0),
-		.CATCH_MISALIGN(1),
-		.CATCH_ILLINSN(1),
+		.CATCH_MISALIGN(0),
+		.CATCH_ILLINSN(0),
 		.HART_ID(0)
 	) primary_cpu (
 		.clk               (clk),
@@ -102,6 +107,7 @@ module soc #(
 		.mem_la_wdata      (mem_la_wdata[31: 0]),
 		.mem_la_wstrb      (mem_la_wstrb[ 3: 0]),
 		.mem_rdata         (mem_rdata   [31: 0]),
+		.irq               ({31'b0, irq_in}),
 		.mcompose_out            (mcompose),
 		.mcompose_mode_out       (mcompose_mode),
 		.mcompose_right_ready_in (mcompose_right_ready[0]),
@@ -134,8 +140,8 @@ module soc #(
 				.LATCHED_MEM_RDATA(1),
 				.TWO_STAGE_SHIFT(0),
 				.TWO_CYCLE_ALU(0),
-				.CATCH_MISALIGN(1),
-				.CATCH_ILLINSN(1),
+				.CATCH_MISALIGN(0),
+				.CATCH_ILLINSN(0),
 				.HART_ID(core_num)
 			) cpu (
 				.clk      		   (clk),
@@ -160,7 +166,8 @@ module soc #(
 				.mcompose_instr_in       (mcompose_instr),
 				.mcompose_reg_in         (mcompose_reg),
 				.mcompose_redundant_in   (mcompose_redundant),
-		   		.mcompose_exec_in        (mcompose_exec)
+		   		.mcompose_exec_in        (mcompose_exec),
+				.mcompose_fault          (fault_in[core_num - 1])
 			);
 			/* verilator lint_on PINMISSING */
 

@@ -4,7 +4,7 @@ FIRMWARE_DIR = src
 RTL_DIR = rtl
 BUILD_DIR = build
 
-SOURCES = init.S main.c sys.c multi_arithmetic.S aes.c blink.c scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c scarv/mp/mrz/*.c scarv/mp/mrz/*.S scarv/share/*.c scarv/scarv.c
+SOURCES = init.S main.c sys.c irq.c multi_arithmetic.S aes.c blink.c scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c scarv/mp/mrz/*.c scarv/mp/mrz/*.S scarv/share/*.c scarv/scarv.c
 
 MEM_SIZE = 65536
 STACK_SIZE = 4096

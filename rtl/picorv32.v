@@ -147,6 +147,7 @@ module picorv32 #(
 	input      [4:0]  mcompose_left_carry_in,
 	output reg [1:0]  mcompose_right_carry_out,
 	input      [1:0]  mcompose_right_carry_in,
+	output            mcompose_fault,
 
 `ifdef RISCV_FORMAL
 	output reg        rvfi_valid,
@@ -238,7 +239,7 @@ module picorv32 #(
 	reg [31:0] mcompose_shadow_pc;
 	reg        mcompose_synced_pc;
 
-	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0);
+	wire       is_composed_primary = PRIMARY_CORE && (mcompose > 0) && (!irq[0]);
 	wire       is_composed_secondary = SECONDARY_CORE && (mcompose_ready) && (mcompose_in > HART_ID);
 	wire       is_composed = is_composed_primary || is_composed_secondary;
 	wire       is_composed_ready = is_composed_primary && mcompose_right_ready_in;
@@ -820,6 +821,7 @@ module picorv32 #(
 		assign mcompose_left_ready_out = (mcompose_ready && mcompose_left_ready_in && cpu_state == cpu_state_composed) || (mcompose_in <= HART_ID);
 		assign mcompose_right_ready_out = (mcompose_ready && mcompose_right_ready_in && cpu_state == cpu_state_composed) || (mcompose_in <= HART_ID);
 		assign mcompose_exec_out = 1'b0;
+		assign mcompose_fault = (cpu_state == cpu_state_trap);
 	end
 
 	wire [31:0] instr_source = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
@@ -1470,19 +1472,20 @@ module picorv32 #(
 			else
 				mcompose_instr_out = mem_rdata_q;
 
-			if (is_redundant && cpu_state == cpu_state_fetch)
-				mcompose_reg_out = reg_pc;
-			else if (is_redundant && instr_rdinstr)
-				mcompose_reg_out = count_instr[31:0];
-			else if (is_redundant && instr_rdinstrh)
-				mcompose_reg_out = count_instr[63:32];
-			else if (is_redundant && instr_rdcycle)
-				mcompose_reg_out = count_cycle[31:0];
-			else if (is_redundant && instr_rdcycleh)
-				mcompose_reg_out = count_cycle[63:32];
-			else if (is_redundant && instr_rdmhartid)
-				mcompose_reg_out = HART_ID;
-			else if (instr_wrmcompose || instr_wrmcomposei)
+			if (is_redundant) begin
+				if (cpu_state == cpu_state_fetch)
+					mcompose_reg_out = reg_pc;
+				else if (instr_rdinstr)
+					mcompose_reg_out = count_instr[31:0];
+				else if (instr_rdinstrh)
+					mcompose_reg_out = count_instr[63:32];
+				else if (instr_rdcycle)
+					mcompose_reg_out = count_cycle[31:0];
+				else if (instr_rdcycleh)
+					mcompose_reg_out = count_cycle[63:32];
+				else if (instr_rdmhartid)
+					mcompose_reg_out = HART_ID;
+			end else if (instr_wrmcompose || instr_wrmcomposei)
 				mcompose_reg_out = reg_next_pc;
 			else
 				mcompose_reg_out = reg_op1;
@@ -1723,6 +1726,10 @@ module picorv32 #(
 		case (cpu_state)
 			cpu_state_trap: begin
 				trap <= 1;
+				if (mcompose_in == 0) begin
+					trap <= 0;
+					cpu_state <= cpu_state_fetch;
+				end
 			end
 
 			cpu_state_composed: begin
@@ -1774,10 +1781,8 @@ module picorv32 #(
 						end
 						if (is_redundant && mcompose_synced_pc && reg_pc != mcompose_reg_in) begin
 							cpu_state <= cpu_state_trap;
-							$display("bad pc  %x != %x", reg_pc, mcompose_reg_in);
 						end else if (is_redundant && prev_latched_store && cpuregs_prev_wrdata != mcompose_redundant_in) begin
 							cpu_state <= cpu_state_trap;
-							$display("bad reg %d  %x != %x", latched_rd, cpuregs_prev_wrdata, mcompose_redundant_in);
 						end else begin
 							cpu_state <= cpu_state_ld_rs1;
 						end
