@@ -7,6 +7,7 @@
 
 #include <scarv/mp/mrz/mrz_mul.h>
 #include <multi_arithmetic.h>
+#include <sys.h>
 
 #if LIBSCARV_CONF_MRZ_MUL_REDC
 void mrz_mul( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x, const mrz_t y ) {
@@ -14,9 +15,8 @@ void mrz_mul( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x, const mrz_t y ) {
 
   memset( R,  0, ( 2 * ctx->l_N + 2 ) * SIZEOF( limb_t ) );
 
-  //mpn_mul_n( R, x, y, ctx->l_N );
-  multi_mult_comp(x, y, R, ctx->l_N, 4);
-  mrz_red( ctx, r, R    );
+  multi_mult(x, y, R, ctx->l_N);
+  mrz_red_asm( ctx->l_N, ctx->N, ctx->omega, r, R);
 }
 #endif
 
