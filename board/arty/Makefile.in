@@ -1,0 +1,27 @@
+# Copyright (C) 2021 SCARV project <info@scarv.org>
+#
+# Use of this source code is restricted per the MIT license, a copy of which 
+# can be found at https://opensource.org/licenses/MIT (or should be included 
+# as LICENSE.txt within the associated archive or repository).
+
+## ------------------------------
+## ARTY flow: synth/pack/place/route/fasm/bitstream
+
+$(BUILD_DIR)/top.eblif: $(RTL_DIR)/*.v $(BUILD_DIR)/firmware.hex ${BOARD_DIR}/arty/arty.xdc
+	cd $(BUILD_DIR) && symbiflow_synth -t top -v ${BOARD_DIR}/arty/arty.v -d artix7 -p xc7a35tcsg324-1 -x ${BOARD_DIR}/arty/arty.xdc
+
+$(BUILD_DIR)/top.net: $(BUILD_DIR)/top.eblif
+	cd $(BUILD_DIR) && symbiflow_pack -e top.eblif -d xc7a50t_test
+
+$(BUILD_DIR)/top.place: $(BUILD_DIR)/top.net
+	cd $(BUILD_DIR) && symbiflow_place -e top.eblif -d xc7a50t_test -n top.net -P xc7a35tcsg324-1
+
+$(BUILD_DIR)/top.route: $(BUILD_DIR)/top.place
+	cd $(BUILD_DIR) && symbiflow_route -e top.eblif -d xc7a50t_test
+
+$(BUILD_DIR)/top.fasm: $(BUILD_DIR)/top.route
+	cd $(BUILD_DIR) && symbiflow_write_fasm -e top.eblif -d xc7a50t_test
+
+$(BUILD_DIR)/arty.bit: $(BUILD_DIR)/top.fasm
+	cd $(BUILD_DIR) && symbiflow_write_bitstream -d artix7 -f top.fasm -p xc7a35tcsg324-1 -b arty.bit
+

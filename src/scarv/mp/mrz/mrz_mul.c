@@ -6,8 +6,8 @@
  */
 
 #include <scarv/mp/mrz/mrz_mul.h>
-#include <multi_arithmetic.h>
-#include <sys.h>
+//#include <multi_arithmetic.h>
+//#include <sys.h>
 
 #if LIBSCARV_CONF_MRZ_MUL_REDC
 void mrz_mul( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x, const mrz_t y ) {

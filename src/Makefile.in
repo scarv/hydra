@@ -1,0 +1,33 @@
+# Copyright (C) 2021 SCARV project <info@scarv.org>
+#
+# Use of this source code is restricted per the MIT license, a copy of which 
+# can be found at https://opensource.org/licenses/MIT (or should be included 
+# as LICENSE.txt within the associated archive or repository).
+
+#--------------------------------------------------------------------
+# Build firmware
+#--------------------------------------------------------------------
+
+TOOLCHAIN_PREFIX = $(RISCV)/bin/riscv32-unknown-elf-
+
+SOURCES  = main.c  compose/*.S
+SOURCES += hal/*.c hal/*.S
+SOURCES += aes/*.c 
+SOURCES += scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c scarv/mp/mrz/*.c scarv/mp/mrz/*.S scarv/share/*.c scarv/scarv.c
+
+#SOURCES = init.S main.c sys.c irq.c multi_arithmetic.S aes.c blink.c scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c scarv/mp/mrz/*.c scarv/mp/mrz/*.S scarv/share/*.c scarv/scarv.c
+
+$(BUILD_DIR)/firmware.elf: $(patsubst %, $(FIRMWARE_DIR)/%, $(SOURCES)) $(FIRMWARE_DIR)/hal/firmware.lds
+	$(TOOLCHAIN_PREFIX)gcc \
+		-march=rv32im -Isrc -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
+		-o $@ $(filter %.c, $^) $(filter %.S, $^) \
+		--std=gnu99 -lgcc -Wl,-Bstatic,-T,$(FIRMWARE_DIR)/hal/firmware.lds,--strip-debug
+
+$(BUILD_DIR)/firmware.bin: $(BUILD_DIR)/firmware.elf
+	$(TOOLCHAIN_PREFIX)objcopy -O binary $< $@
+
+$(BUILD_DIR)/firmware.asm: $(BUILD_DIR)/firmware.elf
+	@${TOOLCHAIN_PREFIX}objdump --disassemble-all ${<} > ${@}
+
+$(BUILD_DIR)/firmware.hex: $(BUILD_DIR)/firmware.bin $(BUILD_DIR)/firmware.asm
+	od -t x4 -An -w4 -v $< > $@	

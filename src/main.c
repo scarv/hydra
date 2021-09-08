@@ -1,12 +1,13 @@
-#include "sys.h"
-#include "multi_arithmetic.h"
-#include "stats.h"
-#include "blink.h"
-#include "aes.h"
-#include "test.h"
 #include <stdint.h>
 #include <stdio.h>
-#include <scarv/scarv.h>
+
+#include "hal/sys.h"
+#include "hal/stats.h"
+#include "hal/blink.h"
+#include "compose/multi_arithmetic.h"
+#include "aes/aes.h"
+#include "scarv/scarv.h"
+#include "test.h"
 
 #define NUM_CORES 4
 
@@ -161,7 +162,7 @@ int main()
         test_add();
         test_subtract();
         test_multiply();
-        test_exp();
+        //test_exp();
 
         save_regs(regs_context[0]);
         set_mcompose(NUM_CORES);

@@ -1,0 +1,18 @@
+# Copyright (C) 2021 SCARV project <info@scarv.org>
+#
+# Use of this source code is restricted per the MIT license, a copy of which 
+# can be found at https://opensource.org/licenses/MIT (or should be included 
+# as LICENSE.txt within the associated archive or repository).
+
+## ------------------------------
+## iceFUN flow: synth/p&r/bitstream
+
+$(BUILD_DIR)/icefun.json: ${BOARD_DIR}/icefun/icefun.v $(RTL_DIR)/*.v $(BUILD_DIR)/firmware.hex
+	yosys -v3 -p 'synth_ice40 -top top -json $@'  ${BOARD_DIR}/icefun/icefun.v ${BOARD_DIR}/icefun/led_display.v $(RTL)
+
+$(BUILD_DIR)/icefun.asc: $(BUILD_DIR)/icefun.json ${BOARD_DIR}/icefun/icefun.pcf
+	nextpnr-ice40 --hx8k --package cb132 --json $< --pcf ${BOARD_DIR}/icefun/icefun.pcf --asc $@
+
+$(BUILD_DIR)/icefun.bin: $(BUILD_DIR)/icefun.asc
+	icepack $< $@
+

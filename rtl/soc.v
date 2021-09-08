@@ -1,5 +1,6 @@
-`include "picorv32.v"
-`include "uart.v"
+//`include "picorv32.v"
+//`include "uart.v"
+`define FIRMWARE "./build/firmware.hex"
 
 module soc #(
     parameter CLK_MHZ = 12

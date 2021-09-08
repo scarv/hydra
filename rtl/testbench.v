@@ -1,7 +1,6 @@
-`define FIRMWARE "build/firmware.hex"
-`include "soc.v"
+//`include "soc.v"
 
-module top;
+module tb_top;
 
     reg clk = 0;
     wire uart_tx;

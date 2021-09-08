@@ -1,6 +1,6 @@
 `define FIRMWARE "build/firmware.hex"
-`include "led_display.v"
-`include "soc.v"
+//`include "led_display.v"
+//`include "soc.v"
 
 module top (
 	input clk,
