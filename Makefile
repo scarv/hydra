@@ -17,7 +17,7 @@ RTL = $(wildcard ${RTL_DIR}/*.v)
 include ${REPO_HOME}/src/Makefile.in
 include ${REPO_HOME}/board/icefun/Makefile.in
 include ${REPO_HOME}/board/arty/Makefile.in
-
+include ${REPO_HOME}/board/sakura-x/Makefile.in
 ## ------------------------------
 ## linting: verilator
 lint:
@@ -27,7 +27,9 @@ icefun: $(BUILD_DIR)/icefun.bin
 
 arty: $(BUILD_DIR)/arty.bit
 
-simulate: $(BUILD_DIR)/firmware.hex
+sakura-x: $(sakura-x-bitstream) 
+
+simulate: $(BUILD_DIR)/firmware.mem
 	iverilog -g2005-sv -I $(RTL_DIR) $(RTL) && ./a.out && rm a.out
 
 ## ------

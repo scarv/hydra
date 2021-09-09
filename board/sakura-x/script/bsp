@@ -1,0 +1,8 @@
+export part 	= "xc7k160tfbg676-3"
+export device 	= "xc7k160t_0"
+
+#set onboard input clock in MHz
+export inclock  = 200.000
+
+#set the type of clock input: Differential_clock_capable_pin or Single_ended_clock_capable_pin
+export clktype  = Differential_clock_capable_pin

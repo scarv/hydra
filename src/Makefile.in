@@ -19,7 +19,7 @@ SOURCES += scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c 
 
 $(BUILD_DIR)/firmware.elf: $(patsubst %, $(FIRMWARE_DIR)/%, $(SOURCES)) $(FIRMWARE_DIR)/hal/firmware.lds
 	$(TOOLCHAIN_PREFIX)gcc \
-		-march=rv32im -Isrc -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
+		-march=rv32im -mabi='ilp32' -Isrc -Os -Wall -ffreestanding -nostdlib -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) \
 		-o $@ $(filter %.c, $^) $(filter %.S, $^) \
 		--std=gnu99 -lgcc -Wl,-Bstatic,-T,$(FIRMWARE_DIR)/hal/firmware.lds,--strip-debug
 
@@ -29,5 +29,5 @@ $(BUILD_DIR)/firmware.bin: $(BUILD_DIR)/firmware.elf
 $(BUILD_DIR)/firmware.asm: $(BUILD_DIR)/firmware.elf
 	@${TOOLCHAIN_PREFIX}objdump --disassemble-all ${<} > ${@}
 
-$(BUILD_DIR)/firmware.hex: $(BUILD_DIR)/firmware.bin $(BUILD_DIR)/firmware.asm
+$(BUILD_DIR)/firmware.mem: $(BUILD_DIR)/firmware.bin $(BUILD_DIR)/firmware.asm
 	od -t x4 -An -w4 -v $< > $@	

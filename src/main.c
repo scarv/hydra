@@ -160,7 +160,7 @@ int main()
 
         test_xor();
         test_add();
-        test_subtract();
+        //test_subtract();
         test_multiply();
         //test_exp();
 

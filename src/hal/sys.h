@@ -12,17 +12,21 @@ void *memset(void *str, int c, unsigned int n);
 
 unsigned int get_hart_id();
 
-unsigned int get_mcompose();
-
 void wait_for_compose();
 
 void delay_cycles(unsigned int n_cycles);
 
-#define set_mcompose(n) asm volatile ("csrwi 0x7c0, %0" : : "i" (n))
-
 #define MCOMPOSE_MODE_WIDE 0
 #define MCOMPOSE_MODE_REDUNDANT 1
 #define set_mcompose_mode(mode) asm volatile ("csrwi 0x7c1, %0" : : "i" (mode))
+#define set_mcompose(n) asm volatile ("csrwi 0x7c0, %0" : : "i" (n))
+#define get_mcompose() ({unsigned int mcompose; \
+                         asm ("csrr %0, 0x7c0" : "=r"(mcompose) : : ); \
+                         mcompose; })
+
+#define get_hart_id()  ({unsigned int id; \
+                         asm ("csrr %0, 0xf14" : "=r"(id)       : : ); \
+                         id;})
 
 #define save_regs(addr) { \
     asm ("sw x1, 0(%0) \n \

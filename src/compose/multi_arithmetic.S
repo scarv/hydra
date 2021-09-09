@@ -56,6 +56,33 @@ multi_add_end:
     mv   carry_out, carry
     ret
 
+// extern int multi_add_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
+multi_add_comp:
+    csrw mcompose, n_cores
+    slli bytes_per_word, n_cores, 2
+    li   carry, 0
+    slli n_bytes, n_words, 2
+    add  a_addr_end, n_bytes, a_addr
+multi_add_comp_loop:
+    beq  a_addr, a_addr_end, multi_add_comp_end
+    lw   a_value, 0(a_addr)
+    lw   b_value, 0(b_addr)
+    add  res_value, a_value, carry
+    sltu carry, res_value, a_value
+    add  res_value, res_value, b_value
+    sltu temp_carry, res_value, b_value
+    or   carry, carry, temp_carry
+    sw   res_value, 0(res_addr)
+    add a_addr, a_addr, bytes_per_word
+    add b_addr, b_addr, bytes_per_word
+    add res_addr, res_addr, bytes_per_word
+    j    multi_add_comp_loop
+multi_add_comp_end:
+    csrw mcompose, zero
+    mv   carry_out, carry
+    ret
+
+
 // extern int multi_sub(const void *a, const void *b, void *res, int n_words);
 multi_sub:
     li   carry, 1
@@ -167,31 +194,6 @@ b_loop_end_comp:
     csrw mcompose, zero
     ret
 
-// extern int multi_add_comp(const void *a, const void *b, void *res, int n_words, int n_cores);
-multi_add_comp:
-    csrw mcompose, n_cores
-    li   carry, 0
-    slli n_bytes, n_words, 2
-    slli bytes_per_word, n_cores, 2
-    add  a_addr_end, n_bytes, a_addr
-multi_add_comp_loop:
-    beq  a_addr, a_addr_end, multi_add_comp_end
-    lw   a_value, 0(a_addr)
-    lw   b_value, 0(b_addr)
-    add  res_value, a_value, carry
-    sltu carry, res_value, a_value
-    add  res_value, res_value, b_value
-    sltu temp_carry, res_value, b_value
-    or   carry, carry, temp_carry
-    sw   res_value, 0(res_addr)
-    add a_addr, a_addr, bytes_per_word
-    add b_addr, b_addr, bytes_per_word
-    add res_addr, res_addr, bytes_per_word
-    j    multi_add_comp_loop
-multi_add_comp_end:
-    csrw mcompose, zero
-    mv   carry_out, carry
-    ret
 
 // extern void multi_xor(const void *a, const void *b, void *res, int n_words);
 multi_xor:

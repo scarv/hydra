@@ -11,19 +11,19 @@ reset_vec:
 
 .balign 16
 irq_vec:
-  picorv32_setq_insn(q2, x1)
-	picorv32_setq_insn(q3, x2)
+    picorv32_setq_insn q2, x1
+	picorv32_setq_insn q3, x2
 
 	lui x1, %hi(irq_regs)
 	addi x1, x1, %lo(irq_regs)
 
-	picorv32_getq_insn(x2, q0)
+	picorv32_getq_insn x2, q0
 	sw x2,   0*4(x1)
 
-	picorv32_getq_insn(x2, q2)
+	picorv32_getq_insn x2, q2
 	sw x2,   1*4(x1)
 
-	picorv32_getq_insn(x2, q3)
+	picorv32_getq_insn x2, q3
 	sw x2,   2*4(x1)
   sw x3,   3*4(x1)
 	sw x4,   4*4(x1)
@@ -65,7 +65,7 @@ irq_vec:
 	addi a0, a0, %lo(irq_regs)
 
 	// arg1 = interrupt type
-	picorv32_getq_insn(a1, q1)
+	picorv32_getq_insn a1, q1
 
 	// call to C function
 	jal ra, irq
@@ -76,13 +76,13 @@ irq_vec:
 	addi x1, a0, 0
 
 	lw x2,   0*4(x1)
-	picorv32_setq_insn(q0, x2)
+	picorv32_setq_insn q0, x2
 
 	lw x2,   1*4(x1)
-	picorv32_setq_insn(q1, x2)
+	picorv32_setq_insn q1, x2
 
 	lw x2,   2*4(x1)
-	picorv32_setq_insn(q2, x2)
+	picorv32_setq_insn q2, x2
   lw x3,   3*4(x1)
 	lw x4,   4*4(x1)
 	lw x5,   5*4(x1)
@@ -113,10 +113,10 @@ irq_vec:
 	lw x30, 30*4(x1)
 	lw x31, 31*4(x1)
 
-  picorv32_getq_insn(x1, q1)
-	picorv32_getq_insn(x2, q2)
+    picorv32_getq_insn x1, q1
+	picorv32_getq_insn x2, q2
 
-  picorv32_retirq_insn()
+    picorv32_retirq_insn
   
 setup_stack:
   /* adjust stack pointer by hart id (STACK_SIZE bytes per hart) */
@@ -132,7 +132,7 @@ setup_stack:
 bnez t0, call_main
 li   t1, 1
 not  t1, t1
-picorv32_maskirq_insn(zero, t1)
+picorv32_maskirq_insn zero, t1
 
 call_main:
 jal ra, main

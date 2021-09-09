@@ -60,18 +60,6 @@ void *memset(void *str, int c, unsigned int n) {
     return str;
 }
 
-unsigned int get_hart_id() {
-    unsigned int id;
-    asm volatile ("csrr %0, 0xf14" : "=r"(id) : : );
-    return id;
-}
-
-unsigned int get_mcompose() {
-    unsigned int mcompose;
-    asm ("csrr %0, 0x7c0" : "=r"(mcompose) : : );
-    return mcompose;
-}
-
 void wait_for_compose() {
     asm volatile ("mv a0, zero");
     asm volatile ("mv a1, zero");

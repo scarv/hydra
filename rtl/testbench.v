@@ -3,15 +3,21 @@
 module tb_top;
 
     reg clk = 0;
+    reg rstn;
     wire uart_tx;
     wire [3:0] leds;
 
     always #1 clk = !clk;
+    initial begin
+    rstn=0;
+    rstn=1;
+    end
 
 	soc #(
 		.CLK_MHZ(0)
 	) composed_soc (
 		.clk(clk),
+		.rstn(rstn),
 		.leds(leds),
 		.uart_tx(uart_tx)
 	);

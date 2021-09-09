@@ -1,0 +1,48 @@
+# Copyright (C) 2021 SCARV project <info@scarv.org>
+#
+# Use of this source code is restricted per the MIT license, a copy of which 
+# can be found at https://opensource.org/licenses/MIT (or should be included 
+# as LICENSE.txt within the associated archive or repository).
+
+## ------------------------------
+## Vivado flow:
+
+export part 	= "xc7k160tfbg676-3"
+export device 	= "xc7k160t_0"
+export board    = sakura-x
+
+export VIVADO_BUILD      = $(REPO_HOME)/build/$(board)
+
+VIVADO_PROJECT = $(board)-imp
+
+VIVADO = cd $(VIVADO_BUILD) && vivado
+UPDMEM = cd $(VIVADO_BUILD) && updatemem
+
+
+#--------------------------------------------------------------------
+# Sources
+#--------------------------------------------------------------------
+rtl_sources  = $(wildcard $(REPO_HOME)/rtl/*.v)
+rtl_sources += $(REPO_HOME)/board/sakura-x/sakura-x.v
+
+#--------------------------------------------------------------------
+# Project generation
+#--------------------------------------------------------------------
+vivado_project_file = $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).xpr
+vivado-project: $(vivado_project_file)
+$(vivado_project_file): 
+	mkdir -p $(VIVADO_BUILD)
+	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/make_project.tcl -tclargs ${REPO_HOME} $(VIVADO_BUILD) $(VIVADO_PROJECT) $(part)  
+
+sakura-x-bitstream = $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/sakura_x.bit
+$(sakura-x-bitstream) : $(rtl_sources)  $(vivado_project_file) $(REPO_HOME)/build/firmware.mem
+	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/make_bitstream.tcl -tclargs $(VIVADO_PROJECT) $(VIVADO_BUILD)
+
+program-sakura-x: $(sakura-x-bitstream)
+	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/program.tcl -tclargs $(device) $(sakura-x-bitstream)
+
+vivado: $(vivado_project_file)
+	$(VIVADO) $(vivado_project_file) &
+
+.PHONY: vivado-project program-fpga vivado 
+

@@ -1,11 +1,15 @@
 //`include "picorv32.v"
 //`include "uart.v"
-`define FIRMWARE "./build/firmware.hex"
+`ifdef FPGA
+	`define FIRMWARE "firmware.mem"
+`else
+	`define FIRMWARE "build/firmware.mem"
+`endif
 
 module soc #(
     parameter CLK_MHZ = 12
 ) (
-	input clk,
+	input clk, rstn,
 	output reg [3:0] leds,
 	output reg [6:0] dbg,
 	output reg [31:0] instr_dbg,
@@ -24,8 +28,8 @@ module soc #(
 	wire resetn = &resetn_counter;
 
 	always @(posedge clk) begin
-		if (!resetn)
-			resetn_counter <= resetn_counter + 1;
+		if       (!rstn)  resetn_counter <= 0; 
+		else if (!resetn) resetn_counter <= resetn_counter + 1;		
 	end
 
 	// -------------------------------
