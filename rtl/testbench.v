@@ -31,9 +31,13 @@ module tb_top;
         wait(composed_soc.resetn == 1);
         $display("Reset finished, UART output follows:\n");
         wait(composed_soc.primary_cpu.reg_pc == 32'h1020);
-        composed_soc.primary_cpu.cpuregs[15] = 32'h55555555;
+        //composed_soc.primary_cpu.cpuregs[15] = 32'h55555555;
         wait(leds[0] == 1);
         $finish;
     end
-
+    
+    initial begin
+        wait(leds[0] == 1);
+        $finish;
+    end
 endmodule

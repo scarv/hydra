@@ -21,6 +21,8 @@ module soc #(
 
 	localparam M_EXTENSION = 1;
 
+	localparam MEM_WORDS = 8192;
+	localparam MEM_BITS = $clog2(MEM_WORDS);
 	// -------------------------------
 	// Reset Generator
 
@@ -34,12 +36,7 @@ module soc #(
 
 	// -------------------------------
 	// Memory/IO Interface
-
-	localparam MEM_WORDS = 16384;
-	localparam MEM_BITS = $clog2(MEM_WORDS);
-	reg [31:0] memory [0:MEM_WORDS-1];
-	initial $readmemh(`FIRMWARE, memory);
-
+	
 	wire [N_CORES - 1:0]    mem_la_read;
 	wire [N_CORES - 1:0]    mem_la_write;
 	wire [N_CORES - 1:0]    mem_la_access = mem_la_read | mem_la_write;
@@ -47,12 +44,14 @@ module soc #(
 	wire [32*N_CORES - 1:0] mem_la_wdata;
 	wire [4*N_CORES - 1:0]  mem_la_wstrb;
 
-	reg [3:0]           mem_addr_high;
-	reg [MEM_BITS-1:0]  mem_addr_low;
-	reg [31:0]          mem_wdata;
-	reg [ 3:0]          mem_wstrb;
-	reg [N_CORES - 1:0] mem_read = 0;
-	reg [N_CORES - 1:0] mem_write = 0;
+	reg  [N_CORES - 1:0] mem_read = 0;
+	reg  [N_CORES - 1:0] mem_write = 0;
+	reg  [3:0]           mem_addr_high;
+	reg  [MEM_BITS-1:0]  mem_addr_low;
+	reg  [31:0]          mem_wdata;
+	reg  [ 3:0]          mem_wstrb;
+	wire [31:0]          ram_rdata;
+
 
 	wire [N_CORES - 1:0] mem_access = mem_read | mem_write;
 
@@ -215,24 +214,14 @@ module soc #(
 		mem_ready <= 0;
         tx_send   <= 0;
 
-		dbg[2:0] <= mcompose_right_ready;
-		dbg[6:3] <= mcompose[3:0];
-
-		if (mcompose_exec)
-			instr_dbg <= mcompose_instr;
-
 		if (resetn && mem_access[mem_arb_counter] && !mem_ready[mem_arb_counter]) begin
 			(* parallel_case *)
 			case (1)
 				mem_read[mem_arb_counter] && mem_addr_high == 4'h0: begin
-					mem_rdata[32*mem_arb_counter + 31 -: 32] <= memory[mem_addr_low];
+					mem_rdata[32*mem_arb_counter + 31 -: 32] <= ram_rdata;
 					mem_ready[mem_arb_counter] <= 1;
 				end
 				mem_write[mem_arb_counter] && mem_addr_high == 4'h0: begin
-					if (mem_wstrb[0]) memory[mem_addr_low][ 7: 0] <= mem_wdata[ 7: 0];
-					if (mem_wstrb[1]) memory[mem_addr_low][15: 8] <= mem_wdata[15: 8];
-					if (mem_wstrb[2]) memory[mem_addr_low][23:16] <= mem_wdata[23:16];
-					if (mem_wstrb[3]) memory[mem_addr_low][31:24] <= mem_wdata[31:24];
 					mem_ready[mem_arb_counter] <= 1;
 				end
 				mem_write[mem_arb_counter] && mem_addr_high == 4'h1: begin
@@ -256,5 +245,38 @@ module soc #(
 			mem_write[mem_arb_counter] <= 0;
 		end
 	end
+	
+	
+	reg [31:0] memory [0:MEM_WORDS-1];
+    initial $readmemh(`FIRMWARE, memory);
+    
+    wire                 bram_rd_ena = mem_read[mem_la_arb_counter] | mem_la_read[mem_la_arb_counter];
+    wire                 bram_wr_ena = mem_write[mem_arb_counter]  && (!mem_ready[mem_arb_counter])  && (mem_addr_high == 4'h0);
+    wire [31:0]          bram_din    = mem_wdata; 
+    wire [ 3:0]          bram_we     = mem_wstrb;
 
+    
+    wire [MEM_BITS-1:0]  bram_wr_addr = mem_addr_low;
+    reg  [MEM_BITS-1:0]  bram_rd_addr;      
+
+    always@(posedge clk) begin    
+        if(bram_rd_ena) begin
+            bram_rd_addr <= mem_la_addr[32*mem_la_arb_counter + MEM_BITS+1 -: MEM_BITS];
+        end
+        if(bram_wr_ena) begin
+            if(bram_we[0]) memory[bram_wr_addr][7 : 0] <= bram_din[7 : 0];
+            if(bram_we[1]) memory[bram_wr_addr][15: 8] <= bram_din[15: 8];
+            if(bram_we[2]) memory[bram_wr_addr][23:16] <= bram_din[23:16];
+            if(bram_we[3]) memory[bram_wr_addr][31:24] <= bram_din[31:24];
+        end
+    end
+    assign ram_rdata = memory[bram_rd_addr];
+	
+
+    always @(posedge clk) begin
+    	dbg[2:0] <= mcompose_right_ready;
+        dbg[6:3] <= mcompose[3:0];
+        if (mcompose_exec)   instr_dbg <= mcompose_instr;
+    end
+    
 endmodule

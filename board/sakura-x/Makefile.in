@@ -18,6 +18,7 @@ VIVADO_PROJECT = $(board)-imp
 VIVADO = cd $(VIVADO_BUILD) && vivado
 UPDMEM = cd $(VIVADO_BUILD) && updatemem
 
+prog_mem = $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mem
 
 #--------------------------------------------------------------------
 # Sources
@@ -35,7 +36,7 @@ $(vivado_project_file):
 	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/make_project.tcl -tclargs ${REPO_HOME} $(VIVADO_BUILD) $(VIVADO_PROJECT) $(part)  
 
 sakura-x-bitstream = $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/sakura_x.bit
-$(sakura-x-bitstream) : $(rtl_sources)  $(vivado_project_file) $(REPO_HOME)/build/firmware.mem
+$(sakura-x-bitstream) : $(rtl_sources)  $(vivado_project_file)
 	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/make_bitstream.tcl -tclargs $(VIVADO_PROJECT) $(VIVADO_BUILD)
 
 program-sakura-x: $(sakura-x-bitstream)
@@ -44,5 +45,22 @@ program-sakura-x: $(sakura-x-bitstream)
 vivado: $(vivado_project_file)
 	$(VIVADO) $(vivado_project_file) &
 
-.PHONY: vivado-project program-fpga vivado 
+.PHONY: vivado-project program-sakura-x vivado 
 
+#--------------------------------------------------------------------
+# Debug helper
+#--------------------------------------------------------------------
+#search-ramb: $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi
+$(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi: $(sakura-x-bitstream) 
+	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/search_ramb.tcl -tclargs $(VIVADO_PROJECT) $(VIVADO_BUILD) > $(VIVADO_BUILD)/$(VIVADO_PROJECT)/search-ramb.info
+	python $(REPO_HOME)/board/sakura-x/script/mmi_gen.py $(VIVADO_BUILD)/$(VIVADO_PROJECT)/search-ramb.info $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi 32 32768 $(part)
+
+bit-update: $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit
+$(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit: $(REPO_HOME)/build/firmware.mem $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi
+	{ echo '@00000000'; cat $(REPO_HOME)/build/firmware.mem;} >$(prog_mem)
+	$(UPDMEM) -force -meminfo $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi -data $(prog_mem) -bit $(sakura-x-bitstream) -proc dummy -out $@
+
+update-program: $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit
+	$(VIVADO) -mode batch -source $(REPO_HOME)/board/sakura-x/script/program.tcl -tclargs $(device) $<
+
+.PHONY: bit-update update-program

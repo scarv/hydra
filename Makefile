@@ -10,7 +10,7 @@ FIRMWARE_DIR = ${REPO_HOME}/src
 RTL_DIR = ${REPO_HOME}/rtl
 
 
-MEM_SIZE = 65536
+MEM_SIZE = 32768
 STACK_SIZE = 4096
 RTL = $(wildcard ${RTL_DIR}/*.v)
 
