@@ -10,8 +10,6 @@ void *memcpy(void *s1, const void *s2, unsigned int n);
 
 void *memset(void *str, int c, unsigned int n);
 
-unsigned int get_hart_id();
-
 void wait_for_compose();
 
 void delay_cycles(unsigned int n_cycles);

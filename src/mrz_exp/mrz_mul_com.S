@@ -4,15 +4,12 @@
  * can be found at https://opensource.org/licenses/MIT (or should be included 
  * as LICENSE.txt within the associated archive or repository).
  */
-
-#include <scarv/share/conf.h>
-
 // ============================================================================	
 
 .section .text
 
-.func    mrz_mul_comp
-.global  mrz_mul_comp
+.func    mrz_mul_com
+.global  mrz_mul_com
 
 // register names
 #define  l_N      s0
@@ -36,9 +33,9 @@
 #define  i_index  a0
 #define  j_index  a4
 
-// void mrz_mul_comp( int l_N, const mrz_t N, const limb_t *omega, mrz_t r, const mrz_t x, const mrz_t y, int n_cores );
+// void mrz_mul_com( int l_N, const mrz_t N, const limb_t *omega, mrz_t r, const mrz_t x, const mrz_t y, int n_cores );
 
-mrz_mul_comp:
+mrz_mul_com:
 .save_regs:
   csrw mcompose, a6
   slli bytes_per_word, a6, 2
