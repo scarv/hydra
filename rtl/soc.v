@@ -62,7 +62,7 @@ module soc #(
 	reg [N_CORES_BITS-1:0] mem_la_arb_counter = 1;
 
 	wire [ 7:0] mcompose;
-	wire        mcompose_mode;
+	wire [ 1:0] mcompose_mode;
 	wire        mcompose_exec;
 	wire [31:0] mcompose_instr;
 	wire [31:0] mcompose_reg;

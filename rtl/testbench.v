@@ -40,4 +40,14 @@ module tb_top;
         wait(leds[0] == 1);
         $finish;
     end
+
+    reg [255*8:0] wavesfile;    // Where to dump VCD wave files
+    initial begin
+        if($value$plusargs("WAVES=%s",wavesfile)) begin
+        end else begin
+            wavesfile="waves-icarus.vcd";
+        end    
+        $dumpfile(wavesfile);
+        $dumpvars(0,tb_top);
+    end
 endmodule

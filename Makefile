@@ -9,7 +9,6 @@ BOARD_DIR = ${REPO_HOME}/board
 FIRMWARE_DIR = ${REPO_HOME}/src
 RTL_DIR = ${REPO_HOME}/rtl
 
-
 MEM_SIZE = 32768
 STACK_SIZE = 4096
 RTL = $(wildcard ${RTL_DIR}/*.v)
@@ -32,6 +31,14 @@ sakura-x: $(sakura-x-bitstream)
 simulate: $(BUILD_DIR)/firmware.mem
 	iverilog -g2005-sv -I $(RTL_DIR) $(RTL) && ./a.out && rm a.out
 
+iver = $(BUILD_DIR)/isim
+simlog = $(BUILD_DIR)/simlog
+simvcd = $(BUILD_DIR)/simvcd.vcd
+simulate-hwdebug: $(BUILD_DIR)/firmware.mem
+	@touch $(BUILD_DIR)/firmware.mem
+	iverilog -g2012 -I$(RTL_DIR) -o $(iver) -s tb_top $(RTL) 
+	vvp  -l $(simlog) $(iver) +WAVES=$(simvcd)
+    
 ## ------
 ## el fin
 
