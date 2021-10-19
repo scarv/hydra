@@ -3,7 +3,12 @@
 
 .global mp_add_com
 
-#define mcompose 0x7c0
+#define mcompose_wide 0
+#define mcompose_simd 1
+#define mcompose_redu 2
+
+#define mcompose_reg  0x7c0
+#define mcompose_mode 0x7c1
 
 #define a_value        t0
 #define b_value        t1
@@ -22,7 +27,10 @@
 
 // extern int mp_add_com(const void *a, const void *b, void *res, int n_words, int n_cores);
 mp_add_com:
-    csrw mcompose, n_cores
+    csrwi mcompose_mode, mcompose_wide
+    csrw  mcompose_reg,  n_cores
+
+
     slli bytes_per_word, n_cores, 2
     li   carry, 0
     slli n_bytes, n_words, 2
@@ -42,7 +50,7 @@ mp_add_comp_loop:
     add res_addr, res_addr, bytes_per_word
     j    mp_add_comp_loop
 mp_add_comp_end:
-    csrw mcompose, zero
+    csrw mcompose_reg, zero
     mv   carry_out, carry
     ret
 

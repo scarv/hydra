@@ -60,6 +60,7 @@ void mrz_init(){
 void test_mrz_exp(){
 
     print_string("Computing exponentiation...\n");
+    set_mcompose_mode(MCOMPOSE_MODE_WIDE);
 	mrz_init();
 
     mrz_mul_com(NUM_WORDS, ctx.N, omega, (limb_t*)r, (limb_t*)x, ctx.rho_2, NUM_CORES);

@@ -6,6 +6,7 @@
 #define NUM_BYTES (NUM_WORDS << 2)
 #define NUM_BITS  (NUM_WORDS << 5)
 
+#ifndef HW_DEBUG
 #define MEASURE(stmt) {                                 \
     uint32_t   cycle_pre,   cycle_post;                 \
     uint32_t instret_pre, instret_post;                 \
@@ -21,7 +22,9 @@
     print_int(instret_post - instret_pre - 3);          \
     print_string(" instructions\n");                    \
   }
-
+#else
+#define MEASURE(stmt) stmt;
+#endif
 int check_result(const void *a, const void *b, int n_bytes);
 extern const unsigned int x[NUM_WORDS];
 extern const unsigned int y[NUM_WORDS];

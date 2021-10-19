@@ -26,11 +26,13 @@
 /* verilator lint_off BLKSEQ */
 
 `timescale 1 ns / 1 ps
+/*
 // `default_nettype none
 // `define DEBUGNETS
 // `define DEBUGREGS
 // `define DEBUGASM
 // `define DEBUG
+*/
 
 `ifdef DEBUG
   `define debug(debug_command) debug_command
@@ -246,8 +248,8 @@ module picorv32 #(
 	wire       is_composed_ready = is_composed_primary && mcompose_right_ready_in;
 
 	wire       is_widedatapath = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b00)) || (SECONDARY_CORE && (mcompose_mode_in==2'b00)));
-	wire       is_redundant    = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b01)) || (SECONDARY_CORE && (mcompose_mode_in==2'b01)));
-	wire       is_simd         = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b10)) || (SECONDARY_CORE && (mcompose_mode_in==2'b10)));
+        wire       is_simd         = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b01)) || (SECONDARY_CORE && (mcompose_mode_in==2'b01)));
+        wire       is_redundant    = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b10)) || (SECONDARY_CORE && (mcompose_mode_in==2'b10)));
 
 	wire       is_composed_state;  //set when cpu_state == cpu_state_composed
 	wire       is_fetch_state;     //set when cpu_state == cpu_state_fetch
@@ -307,6 +309,37 @@ module picorv32 #(
 	wire [31:0] dbg_reg_x31 = cpuregs[31];
 `endif
 
+        wire [31:0] dbg_reg_ra  = cpuregs[1];
+        wire [31:0] dbg_reg_sp  = cpuregs[2];
+
+        wire [31:0] dbg_reg_t0  = cpuregs[5];
+        wire [31:0] dbg_reg_t1  = cpuregs[6];
+        wire [31:0] dbg_reg_t2  = cpuregs[7];
+        wire [31:0] dbg_reg_s0  = cpuregs[8];
+        wire [31:0] dbg_reg_s1  = cpuregs[9];
+        wire [31:0] dbg_reg_a0 = cpuregs[10];
+        wire [31:0] dbg_reg_a1 = cpuregs[11];
+        wire [31:0] dbg_reg_a2 = cpuregs[12];
+        wire [31:0] dbg_reg_a3 = cpuregs[13];
+        wire [31:0] dbg_reg_a4 = cpuregs[14];
+        wire [31:0] dbg_reg_a5 = cpuregs[15];
+        wire [31:0] dbg_reg_a6 = cpuregs[16];
+        wire [31:0] dbg_reg_a7 = cpuregs[17];
+        wire [31:0] dbg_reg_s2 = cpuregs[18];
+        wire [31:0] dbg_reg_s3 = cpuregs[19];
+        wire [31:0] dbg_reg_s4 = cpuregs[20];
+        wire [31:0] dbg_reg_s5 = cpuregs[21];
+        wire [31:0] dbg_reg_s6 = cpuregs[22];
+        wire [31:0] dbg_reg_s7 = cpuregs[23];
+        wire [31:0] dbg_reg_s8 = cpuregs[24];
+        wire [31:0] dbg_reg_s9 = cpuregs[25];
+        wire [31:0] dbg_reg_s10 = cpuregs[26];
+        wire [31:0] dbg_reg_s11 = cpuregs[27];
+        wire [31:0] dbg_reg_t3 = cpuregs[28];
+        wire [31:0] dbg_reg_t4 = cpuregs[29];
+        wire [31:0] dbg_reg_t5 = cpuregs[30];
+        wire [31:0] dbg_reg_t6 = cpuregs[31];
+
 	// Internal PCPI Cores
 
 	wire        pcpi_mul_wr;
@@ -359,7 +392,7 @@ module picorv32 #(
 			.pcpi_ready(pcpi_mul_ready ),
 // for mcompose: wide datapath mode================================			
 			.mcompose  ((PRIMARY_CORE) ? mcompose : mcompose_in), 
-            .is_composed  (is_widthdatapath),
+            .is_composed  (is_widedatapath),
             .rs1_lsb_in   (mcompose_left_carry_in[0]),
             .rs2_bit0_in  (mcompose_left_carry_in[1]),
             .rs2_bit32_in (mcompose_left_carry_in[2]),
@@ -1250,9 +1283,9 @@ module picorv32 #(
 				instr_jal:
 					decoded_imm <= decoded_imm_j;
 				|{instr_lui, instr_auipc}:
-					decoded_imm <= (is_composed_secondary && !is_redundant) ? 0 : (instr_source_q[31:12] << 12);
+                                        decoded_imm <= (is_composed_secondary && (is_widedatapath||is_simd)) ? 0 : (instr_source_q[31:12] << 12);
 				|{instr_jalr, is_lb_lh_lw_lbu_lhu, is_alu_reg_imm}:
-					decoded_imm <= (is_composed_secondary && !is_redundant) ? 0 : $signed(instr_source_q[31:20]);
+                                        decoded_imm <= $signed(instr_source_q[31:20]);
 				is_beq_bne_blt_bge_bltu_bgeu:
 					decoded_imm <= $signed({instr_source_q[31], instr_source_q[7], instr_source_q[30:25], instr_source_q[11:8], 1'b0});
 				is_sb_sh_sw:
@@ -1366,8 +1399,8 @@ module picorv32 #(
 				alu_add_sub <= instr_sub ? (reg_op1 - reg_op2 - mcompose_left_carry_in[0]) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
 			else if (is_composed_primary && !is_redundant)
 				alu_add_sub <= instr_sub ? (reg_op1 - reg_op2) : (reg_op1 + reg_op2);
-			else
-				alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
+                        else	alu_add_sub <= instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
+
 			alu_lts <= $signed(reg_op1) < $signed(reg_op2);
 			if (is_composed_primary && !is_redundant) begin
 				alu_ltu <= mcompose_right_carry_in[0] ? (reg_op1 < reg_op2) : mcompose_right_carry_in[1];
@@ -1382,33 +1415,36 @@ module picorv32 #(
 			alu_shl <= reg_op1 << reg_op2[4:0];
 			alu_shr <= $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
 		end
-	end else begin
+        end
+        else begin
 		always @* begin
+
 			if (is_composed_secondary && is_widedatapath)
 				alu_add_sub = instr_sub ? (reg_op1 - reg_op2 - mcompose_left_carry_in[0]) : (reg_op1 + reg_op2 + mcompose_left_carry_in[0]);
-//			else if (is_composed_primary && !is_redundant)
-//				alu_add_sub = instr_sub ? (reg_op1 - reg_op2) : (reg_op1 + reg_op2);
-			else
-				alu_add_sub = instr_sub ? reg_op1 - reg_op2 : reg_op1 + reg_op2;
-			alu_lts = $signed(reg_op1) < $signed(reg_op2);
-			if (is_composed_primary && !is_redundant) begin
-				alu_ltu = mcompose_right_carry_in[0] ? (reg_op1 < reg_op2) : mcompose_right_carry_in[1];
-				alu_eq = (reg_op1 == reg_op2) && mcompose_right_carry_in[0];
-			end else if (is_composed_secondary && !is_redundant) begin
-				alu_ltu = 0;
-				alu_eq = 0;
+                        else	alu_add_sub = instr_sub ? (reg_op1 - reg_op2) :                             (reg_op1 + reg_op2);
+
+                        if (is_composed_primary && is_widedatapath) begin
+                                alu_eq  = mcompose_right_carry_in[0] && (reg_op1 == reg_op2) ;
+                                alu_ltu = mcompose_right_carry_in[0] ?  (reg_op1 <  reg_op2) : mcompose_right_carry_in[1];
+                        end else if (is_composed_secondary && is_widedatapath) begin
+                                alu_ltu = 0;
+                                alu_eq  = 0;
 			end else begin
-				alu_ltu = reg_op1 < reg_op2;
-				alu_eq = reg_op1 == reg_op2;
+                                alu_ltu = reg_op1 <  reg_op2;
+                                alu_eq  = reg_op1 == reg_op2;
 			end
+
+                        alu_lts = $signed(reg_op1) < $signed(reg_op2);
+
 			alu_shl = reg_op1 << reg_op2[4:0];
 			alu_shr = $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
+
 		end
 	end endgenerate
 
     always @* begin    
         mcompose_left_carry_out = 0;
-        if (is_composed && !is_redundant) begin
+        if (is_composed && is_widedatapath) begin
             if (instr_any_mul) begin
                     mcompose_left_carry_out[0] = pcpi_mul_rs1_lsb_out;
                     mcompose_left_carry_out[1] = pcpi_mul_rs2_bit31_out;
@@ -1424,14 +1460,14 @@ module picorv32 #(
   
      always @* begin    
         mcompose_right_carry_out = 0;
-        if (is_composed && !is_redundant) begin
+        if (is_composed && is_widedatapath) begin
             if (instr_beq || instr_bne || is_sltiu_bltu_sltu) begin
                 if (SECONDARY_CORE && HART_ID == mcompose_in - 1) begin
                     mcompose_right_carry_out[0] = (reg_op1 == reg_op2);
                     mcompose_right_carry_out[1] = (reg_op1 < reg_op2);
                 end else if (SECONDARY_CORE) begin
-                    mcompose_right_carry_out[0] = mcompose_right_carry_in[0] && (reg_op1 == reg_op2);
-                    mcompose_right_carry_out[1] = mcompose_right_carry_in[0] ? (reg_op1 < reg_op2) : mcompose_right_carry_in[1];
+                    mcompose_right_carry_out[0] = mcompose_right_carry_in[0] && (reg_op1 == reg_op2) ;
+                    mcompose_right_carry_out[1] = mcompose_right_carry_in[0] ?  (reg_op1 <  reg_op2) : mcompose_right_carry_in[1];
                 end
             end else begin
                     mcompose_right_carry_out[0] = pcpi_mul_rs1_bit0_out;
@@ -1544,7 +1580,8 @@ module picorv32 #(
                 else if (instr_rdinstrh)                     mcompose_reg_out = count_instr[63:32];
                 else if (instr_rdcycle)                      mcompose_reg_out = count_cycle[31:0];
                 else if (instr_rdcycleh)                     mcompose_reg_out = count_cycle[63:32];
-                else if (instr_rdmhartid)                    mcompose_reg_out = HART_ID;             end 
+                else if (instr_rdmhartid)                    mcompose_reg_out = HART_ID;
+            end
             else if (instr_wrmcompose || instr_wrmcomposei)  mcompose_reg_out = reg_next_pc;
             else                                             mcompose_reg_out = reg_op1;
     
@@ -2223,7 +2260,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-						reg_op1 <= decoded_imm + ((is_composed_secondary && !is_redundant) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
+                                                reg_op1 <= decoded_imm + ((is_composed_secondary && (is_widedatapath||is_simd)) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
 						set_mem_do_wdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin
@@ -2253,7 +2290,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-						reg_op1 <= decoded_imm + ((is_composed_secondary && !is_redundant) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
+                                                reg_op1 <= decoded_imm + ((is_composed_secondary && (is_widedatapath||is_simd)) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
 						set_mem_do_rdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin

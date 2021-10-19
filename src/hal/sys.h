@@ -14,8 +14,10 @@ void wait_for_compose();
 
 void delay_cycles(unsigned int n_cycles);
 
-#define MCOMPOSE_MODE_WIDE 0
-#define MCOMPOSE_MODE_REDUNDANT 1
+#define MCOMPOSE_MODE_WIDE      0
+#define MCOMPOSE_MODE_SIMD      1
+#define MCOMPOSE_MODE_REDUNDANT 2
+
 #define set_mcompose_mode(mode) asm volatile ("csrwi 0x7c1, %0" : : "i" (mode))
 #define set_mcompose(n) asm volatile ("csrwi 0x7c0, %0" : : "i" (n))
 #define get_mcompose() ({unsigned int mcompose; \

@@ -3,12 +3,12 @@
 
 #include "hal/sys.h"
 #include "hal/blink.h"
-#include "compose/multi_arithmetic.h"
 #include "mp_xor/mp_xor.h"
 #include "mp_add/mp_add.h"
 #include "mp_mul/mp_mul.h"
 #include "mrz_exp/mrz_exp.h"
-//#include "aes/aes.h"
+#include "aes/aes.h"
+#include "chacha/chacha.h"
 #include "share.h"
 #include "test.h"
 
@@ -24,21 +24,26 @@ int check_result(const void *a, const void *b, int n_bytes) {
     return success;
 }
 
-/*
+
 void test_aes() {
     struct AES_ctx ctx;
-
     //print_string("AES key expansion: ");
     AES_init_ctx(&ctx, aes_key);
     
     //print_string("AES encrypting one block: ");
+//  print_string("\nEntering redundant mode\n");
+    set_mcompose_mode(MCOMPOSE_MODE_REDUNDANT);
+    set_mcompose(NUM_CORES);
     AES_ECB_encrypt(&ctx, aes_in);
+    set_mcompose(0);
+    set_mcompose_mode(MCOMPOSE_MODE_WIDE);
+//  print_string("Exited redundant mode\n");
 
     if (!check_result(aes_in, aes_out, 16)) {
         print_string("AES encryption failed!\n");
     }
 }
-*/
+
 
 int main()
 {
@@ -48,22 +53,18 @@ int main()
         print_string("Hello from core #0\n");
 
         test_mp_xor();
-        //test_mp_add();
-       // test_mp_mul();
-        test_mrz_exp();
+        test_mp_add();
+        test_mp_mul();
+        //test_mrz_exp();
 
         //save_regs(regs_context[0]);
         //set_mcompose(NUM_CORES);
         //set_mcompose(0);
-/*
-        print_string("\nEntering redundant mode\n");
-        set_mcompose_mode(MCOMPOSE_MODE_REDUNDANT);
-        set_mcompose(NUM_CORES);
-        test_aes();
-        set_mcompose(0);
-        set_mcompose_mode(MCOMPOSE_MODE_WIDE);
-        print_string("Exited redundant mode\n");
-*/
+
+        //test_aes();
+		test_chacha();
+
+
     } else {
         while(1){
         wait_for_compose(); 
