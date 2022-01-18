@@ -20,7 +20,7 @@ include ${REPO_HOME}/board/sakura-x/Makefile.in
 ## ------------------------------
 ## linting: verilator
 lint:
-	verilator -I$(RTL_DIR) -Wall --lint-only --top-module top $(RTL_DIR)/soc.v
+	verilator -I$(RTL_DIR) -Wall --lint-only --top-module soc $(RTL_DIR)/soc.v
 
 icefun: $(BUILD_DIR)/icefun.bin
 
