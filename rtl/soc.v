@@ -10,7 +10,7 @@ module soc #(
     parameter CLK_MHZ = 12
 ) (
     input clk, rstn,
-    output reg [3:0] leds,
+    output wire [3:0] leds,
     output reg [6:0] dbg,
     output reg [31:0] instr_dbg,
     output uart_tx
@@ -23,44 +23,30 @@ localparam RIGHT_CARRY_BITS = 2;
 
 localparam M_EXTENSION = 1;
 
+localparam N_SLAVE = 3;  // SRAM, GPO, UART
 localparam MEM_WORDS = 8192;
 localparam MEM_BITS = $clog2(MEM_WORDS);
 // -------------------------------
 // Reset Generator
 
 reg [7:0] resetn_counter = 0;
-wire resetn = &resetn_counter;
+wire resetn = & resetn_counter;
 
 always @(posedge clk) begin
     if       (!rstn)  resetn_counter <= 0;
-else if (!resetn) resetn_counter <= resetn_counter + 1;
+    else if (!resetn) resetn_counter <= resetn_counter + 1;
 end
 
 // -------------------------------
 // Memory/IO Interface
-// From/To
-wire [N_CORES      - 1:0] mem_la_read;
-wire [N_CORES      - 1:0] mem_la_write;
-wire [N_CORES      - 1:0] mem_la_access = mem_la_read | mem_la_write;
-wire [N_CORES * 32 - 1:0] mem_la_addr;
-wire [N_CORES * 32 - 1:0] mem_la_wdata;
-wire [N_CORES *  4 - 1:0] mem_la_wstrb;
-reg  [N_CORES * 32 - 1:0] mem_rdata;
-reg  [N_CORES      - 1:0] mem_ready;
-
-
-// From/to SRam memory
-reg  [N_CORES - 1:0] sram_read;
-reg  [N_CORES - 1:0] sram_write;
-wire [N_CORES - 1:0] sram_access = sram_read | sram_write;
-wire [         31:0] sram_rdata;
-reg  [         31:0] sram_wdata;
-reg  [ 3:0]          sram_wstrb;
-reg  [          3:0] mem_addr_high;
-reg  [MEM_BITS- 1:0] mem_addr_low;
-
-reg [N_CORES_BITS-1:0] mem_arb_counter = 0;
-reg [N_CORES_BITS-1:0] mem_la_arb_counter = 1;
+// Cores <> inter_i
+wire [N_CORES      - 1:0] mem_write;
+wire [N_CORES * 32 - 1:0] mem_addr;
+wire [N_CORES * 32 - 1:0] mem_wdata;
+wire [N_CORES *  4 - 1:0] mem_wstrb;
+wire [N_CORES * 32 - 1:0] mem_rdata;
+wire [N_CORES      - 1:0] mem_valid;
+wire [N_CORES      - 1:0] mem_ready;
 
 wire [ 7:0] mcompose;
 wire [ 1:0] mcompose_mode;
@@ -68,19 +54,18 @@ wire        mcompose_exec;
 wire [31:0] mcompose_instr;
 wire [31:0] mcompose_reg;
 wire [31:0] mcompose_redundant;
-wire [N_CORES*4 - 1 : 0] dummy;
-wire [N_CORES-1 : 0] mcompose_right_ready;
-wire [N_CORES-1 : 0] mcompose_left_ready;
+wire [N_CORES                  -1 : 0] mcompose_right_ready;
+wire [N_CORES*RIGHT_CARRY_BITS -1 : 0] mcompose_right_carry;
+wire [N_CORES                  -1 : 0] mcompose_left_ready;
+wire [N_CORES*LEFT_CARRY_BITS  -1 : 0] mcompose_left_carry;
+
 wire [N_CORES-2 : 0] fault_in;
+wire [N_CORES*4 - 1 : 0] dummy;
 wire irq_in;
 assign irq_in = |fault_in && (mcompose > 0);
 assign mcompose_right_ready[N_CORES-1] = 1;
 
-wire [N_CORES*LEFT_CARRY_BITS-1 : 0] mcompose_left_carry;
-wire [N_CORES*RIGHT_CARRY_BITS-1 : 0] mcompose_right_carry;
-
 // -------------------------------
-// PicoRV32 Cores
 // Primary core
 /* verilator lint_off PINMISSING */
 picorv32 #(
@@ -99,16 +84,15 @@ picorv32 #(
     .CATCH_ILLINSN(0),
     .HART_ID(0)
 ) primary_cpu (
-    .clk               (clk),
-    .resetn            (resetn),
-    .mem_la_read       (mem_la_read [0]),
-    .mem_la_write      (mem_la_write[0]),
-    .mem_ready         (mem_ready   [0]),
-    .mem_la_addr       (mem_la_addr [31: 0]),
-    .mem_la_wdata      (mem_la_wdata[31: 0]),
-    .mem_la_wstrb      (mem_la_wstrb[ 3: 0]),
-    .mem_rdata         (mem_rdata   [31: 0]),
-    .irq               ({31'b0, irq_in}),
+    .clk            (clk),
+    .resetn         (resetn),
+    .mem_valid      (mem_valid[ 0  ]),
+    .mem_addr       (mem_addr[ 31:0]),
+    .mem_wdata      (mem_wdata[31:0]),
+    .mem_wstrb      (mem_wstrb[ 3:0]),
+    .mem_rdata      (mem_rdata[31:0]),
+    .mem_ready      (mem_ready[ 0  ]),
+   .irq             ({31'b0, irq_in}),
     .mcompose_out            (mcompose),
     .mcompose_mode_out       (mcompose_mode),
     .mcompose_right_ready_in (mcompose_right_ready[0]),
@@ -124,8 +108,8 @@ picorv32 #(
     .mcompose_exec_out       (mcompose_exec)
 );
 /* verilator lint_on PINMISSING */
-
-// // Secondary cores
+assign mem_write[0] = mem_valid [0] &&  (|mem_wstrb[3: 0]);
+// Secondary cores
 genvar core_num;
 generate
     for (core_num = 1; core_num < N_CORES; core_num = core_num + 1) begin
@@ -144,15 +128,14 @@ generate
             .CATCH_ILLINSN(0),
             .HART_ID(core_num)
         ) cpu (
-            .clk                (clk),
-            .resetn             (resetn),
-            .mem_la_read        (mem_la_read  [core_num]),
-            .mem_la_write       (mem_la_write [core_num]),
-            .mem_ready          (mem_ready    [core_num]),
-            .mem_la_addr        (mem_la_addr  [32*core_num + 31 -: 32]),
-            .mem_la_wdata       (mem_la_wdata [32*core_num + 31 -: 32]),
-            .mem_la_wstrb       (mem_la_wstrb [ 4*core_num +  3 -: 4]),
-            .mem_rdata          (mem_rdata    [32*core_num + 31 -: 32]),
+            .clk             (clk),
+            .resetn          (resetn),
+            .mem_valid       (mem_valid[   core_num           ]),
+            .mem_addr        (mem_addr[ 32*core_num + 31 -: 32]),
+            .mem_wdata       (mem_wdata[32*core_num + 31 -: 32]),
+            .mem_wstrb       (mem_wstrb[ 4*core_num +  3 -:  4]),
+            .mem_ready       (mem_ready[   core_num           ]),
+            .mem_rdata       (mem_rdata[32*core_num + 31 -: 32]),
             .mcompose_in             (mcompose),
             .mcompose_mode_in        (mcompose_mode),
             .mcompose_right_ready_in (mcompose_right_ready[core_num]),
@@ -168,28 +151,114 @@ generate
             .mcompose_redundant_in   (mcompose_redundant),
             .mcompose_exec_in        (mcompose_exec),
             .mcompose_fault          (fault_in[core_num - 1])
-);
-/* verilator lint_on PINMISSING */
+        );
+    /* verilator lint_on PINMISSING */
+        assign mem_write[core_num] = mem_valid [core_num] &&  (|mem_wstrb[ 4*core_num +  3 -: 4]);
     end
 endgenerate
 
+wire  [N_CORES      - 1 : 0] master_data_rvalid;
+wire  [N_CORES      - 1 : 0] master_data_gnt;
+assign                       mem_ready = master_data_rvalid & master_data_gnt;
+
+wire  [N_SLAVE * 32 - 1 : 0] slave_data_addr;
+wire  [N_SLAVE * 32 - 1 : 0] slave_data_wdata;
+wire  [N_SLAVE * 32 - 1 : 0] slave_data_rdata;
+wire  [N_SLAVE      - 1 : 0] slave_data_req;
+wire  [N_SLAVE      - 1 : 0] slave_data_we;
+wire  [N_SLAVE *  4 - 1 : 0] slave_data_be;
+wire                         tx_ready;
+
+
+inter #(
+    .DATA_WIDTH(        32 ),
+    .MASTER_ADDR_WIDTH( 32 ),
+    .SLAVE_ADDR_WIDTH(  32 ),
+    .MASTERS(      N_CORES ),
+    .SLAVES(       N_SLAVE ),
+    .MASTER_ADDR_MATCH( { 32'h20000000, 32'h10000000, 32'h00000000} ),
+    .MASTER_ADDR_MASK(  { 32'hF0000000, 32'hF0000000, 32'hF0000000} )
+) inter_i (
+    .clk(clk),
+    .resetn(resetn),
+    .master_data_addr_i(   mem_addr),
+    .master_data_wdata_i(  mem_wdata),
+    .master_data_rdata_o(  mem_rdata),
+    .master_data_req_i(    mem_valid),
+    .master_data_we_i(     mem_write),
+    .master_data_be_i(     mem_wstrb),
+    .master_data_rvalid_o( master_data_rvalid),
+    .master_data_gnt_o(    master_data_gnt),
+
+    .slave_data_addr_o(   slave_data_addr  ),
+    .slave_data_wdata_o(  slave_data_wdata ),
+    .slave_data_rdata_i(  slave_data_rdata ),
+    .slave_data_req_o(    slave_data_req   ),
+    .slave_data_we_o(     slave_data_we    ),
+    .slave_data_be_o(     slave_data_be    ),
+    .slave_data_rvalid_i( {N_SLAVE{1'b1}}  ),
+    .slave_data_gnt_i(    {N_SLAVE{1'b1}}  )
+);
+
+reg [31:0] memory [0:MEM_WORDS-1];
+initial $readmemh(`FIRMWARE, memory);
+
+reg [MEM_BITS-1:0]  bram_addr_reg;
+reg [31        :0]  bram_din_reg;
+reg [31        :0]  bram_dout_reg;
+reg                 bram_rd_reg;
+reg                 bram_we_reg;
+reg [ 3        :0]  bram_be_reg;
+
+always @(*) begin
+    bram_addr_reg = slave_data_addr[ 0*32+2 +: MEM_BITS];
+    bram_din_reg  = slave_data_wdata[0*32   +: 32];
+    bram_rd_reg   = slave_data_req[  0] & (~slave_data_we[0]);
+    bram_we_reg   = slave_data_req[  0] & ( slave_data_we[0]);
+    bram_be_reg   = slave_data_be[   0*4    +:  4];
+end
+
+always@(posedge clk) begin
+    if(bram_we_reg) begin
+        if(bram_be_reg[0]) memory[bram_addr_reg][7 : 0] <= bram_din_reg[7 : 0];
+        if(bram_be_reg[1]) memory[bram_addr_reg][15: 8] <= bram_din_reg[15: 8];
+        if(bram_be_reg[2]) memory[bram_addr_reg][23:16] <= bram_din_reg[23:16];
+        if(bram_be_reg[3]) memory[bram_addr_reg][31:24] <= bram_din_reg[31:24];
+    end
+end
+always@(negedge clk) begin
+    if (~resetn)            bram_dout_reg <= 32'd0;
+    else if (bram_rd_reg)   bram_dout_reg <= memory[bram_addr_reg];
+end
+assign slave_data_rdata[0*32 +: 32] = bram_dout_reg;
+
+// -------------------------------
+// GPO
+gpo # (
+    .NBIT(4)
+) gpo0 (
+    .clk     (clk),
+    .resetn  (resetn),
+    .dout    (leds),
+    .din     (slave_data_wdata[ 1 * 32 +: 4] ),
+    .din_val (slave_data_req[1] & slave_data_we[1])
+);
+assign slave_data_rdata[1*32 +: 32] = 32'd0;
 // -------------------------------
 // UART Transmitter
-reg [7:0] tx_data;
-reg       tx_send;
-wire      tx_ready;
 
 uart #(
     .CLK_MHZ(CLK_MHZ)
 ) uart0 (
     .clk     (clk),
     .tx      (uart_tx),
-    .sendData(tx_data),
-    .sendReq (tx_send),
+    .sendData(slave_data_wdata[2*32 +:8] ),
+    .sendReq (slave_data_req[2] & slave_data_we[2]),
     .ready   (tx_ready)
 );
+assign slave_data_rdata[2*32 +: 32] = {31'b0, tx_ready};
 
-
+/*
 always @(posedge clk) begin
     if (|mem_la_access) begin
         sram_read  <= sram_read  | mem_la_read;
@@ -239,30 +308,7 @@ always @(posedge clk) begin
         sram_write[mem_arb_counter] <= 0;
     end
 end
-
-
-reg [31:0] memory [0:MEM_WORDS-1];
-initial $readmemh(`FIRMWARE, memory);
-
-wire                 bram_rd_ena  = sram_read[mem_la_arb_counter] | mem_la_read[mem_la_arb_counter];
-wire                 bram_wr_ena  = sram_write[mem_arb_counter]  && (!mem_ready[mem_arb_counter])  && (mem_addr_high == 4'h0);
-wire [31:0]          bram_din     = sram_wdata;
-wire [ 3:0]          bram_we      = sram_wstrb;
-wire [MEM_BITS-1:0]  bram_wr_addr = mem_addr_low;
-reg  [MEM_BITS-1:0]  bram_rd_addr;
-
-always@(posedge clk) begin
-    if(bram_rd_ena) begin
-        bram_rd_addr <= mem_la_addr[32*mem_la_arb_counter + MEM_BITS+1 -: MEM_BITS];
-    end
-    if(bram_wr_ena) begin
-        if(bram_we[0]) memory[bram_wr_addr][7 : 0] <= bram_din[7 : 0];
-        if(bram_we[1]) memory[bram_wr_addr][15: 8] <= bram_din[15: 8];
-        if(bram_we[2]) memory[bram_wr_addr][23:16] <= bram_din[23:16];
-        if(bram_we[3]) memory[bram_wr_addr][31:24] <= bram_din[31:24];
-    end
-end
-assign sram_rdata = memory[bram_rd_addr];
+*/
 
 always @(posedge clk) begin
     dbg[2:0] <= mcompose_right_ready;

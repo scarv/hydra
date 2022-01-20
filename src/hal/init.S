@@ -25,7 +25,7 @@ irq_vec:
 
 	picorv32_getq_insn x2, q3
 	sw x2,   2*4(x1)
-  sw x3,   3*4(x1)
+    sw x3,   3*4(x1)
 	sw x4,   4*4(x1)
 	sw x5,   5*4(x1)
 	sw x6,   6*4(x1)
@@ -83,7 +83,7 @@ irq_vec:
 
 	lw x2,   2*4(x1)
 	picorv32_setq_insn q2, x2
-  lw x3,   3*4(x1)
+    lw x3,   3*4(x1)
 	lw x4,   4*4(x1)
 	lw x5,   5*4(x1)
 	lw x6,   6*4(x1)

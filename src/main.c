@@ -64,16 +64,15 @@ int main()
         //test_aes();
 		test_chacha();
 
-
     } else {
         while(1){
         wait_for_compose(); 
 		}
-        save_regs(regs_context[hart_id]);
-        set_mcompose(NUM_CORES);
-        load_regs(regs_context[0]);
-        set_mcompose(NUM_CORES);
-        restore_regs(regs_context);
+//        save_regs(regs_context[hart_id]);
+//        set_mcompose(NUM_CORES);
+//        load_regs(regs_context[0]);
+//        set_mcompose(NUM_CORES);
+//        restore_regs(regs_context);
     }
 
     blink(hart_id);

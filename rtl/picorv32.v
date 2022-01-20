@@ -33,6 +33,7 @@
 // `define DEBUGASM
 // `define DEBUG
 */
+//`define DEBUG
 
 `ifdef DEBUG
   `define debug(debug_command) debug_command
@@ -749,6 +750,7 @@ module picorv32 #(
 			endcase
 			if (is_composed_state) begin
 				mem_state <= 0;
+                                if (mem_do_prefetch || mem_do_rinst) mem_valid <= 0;
 			end
 		end
 
@@ -1023,7 +1025,7 @@ module picorv32 #(
 			is_beq_bne_blt_bge_bltu_bgeu <= instr_source[6:0] == 7'b1100011;
 			is_lb_lh_lw_lbu_lhu          <= instr_source[6:0] == 7'b0000011;
 			is_sb_sh_sw                  <= instr_source[6:0] == 7'b0100011;
-			is_alu_reg_imm               <= instr_source[6:0] == 7'b0010011;
+                        is_alu_reg_imm               <= instr_source[6:0] == 7'b0010011;
 			is_alu_reg_reg               <= instr_source[6:0] == 7'b0110011;
 
 			{ decoded_imm_j[31:20], decoded_imm_j[10:1], decoded_imm_j[11], decoded_imm_j[19:12], decoded_imm_j[0] } <= $signed({instr_source[31:12], 1'b0});
