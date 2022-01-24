@@ -4,11 +4,13 @@ module tb_top;
 
 reg clk = 0;
 reg rstn;
+reg fault_inj;
 wire uart_tx;
 wire [3:0] leds;
 
 always #1 clk = !clk;
-    initial begin
+
+initial begin
     rstn=0;
     rstn=1;
 end
@@ -22,19 +24,33 @@ soc #(
     .uart_tx(uart_tx)
 );
 
+initial begin
+    wait(composed_soc.resetn == 1);
+    $display("Reset finished, UART output follows:\n");
+    wait(leds[0] == 1);
+    $finish;
+end
 // Echo UART output
 always @(posedge composed_soc.uart0.sendReq) begin
     $write("%c", composed_soc.uart0.sendData);
 end
 
+
+
 initial begin
-    wait(composed_soc.resetn == 1);
-    $display("Reset finished, UART output follows:\n");
-    wait(composed_soc.primary_cpu.reg_pc == 32'h1020);
-    //composed_soc.primary_cpu.cpuregs[15] = 32'h55555555;
-    wait(leds[0] == 1);
-    $finish;
+    fault_inj = 0;
+    wait(composed_soc.primary_cpu.is_redundant == 1'b1);
+    `ifdef FAULT_INJ
+    $display("inject a fault\n");
+    #15;
+    fault_inj = 1;
+    force composed_soc.primary_cpu.alu_out = 32'h00000000;
+    #10;
+    fault_inj = 0;
+    release composed_soc.primary_cpu.alu_out;
+    `endif
 end
+
 
 initial begin
     wait(leds[0] == 1);
@@ -50,4 +66,5 @@ initial begin
     $dumpfile(wavesfile);
     $dumpvars(0,tb_top);
 end
+
 endmodule

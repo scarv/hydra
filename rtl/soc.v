@@ -30,13 +30,13 @@ localparam MEM_BITS = $clog2(MEM_WORDS);
 // Reset Generator
 
 reg [7:0] resetn_counter = 0;
-wire resetn = & resetn_counter;
-
 always @(posedge clk) begin
     if       (!rstn)  resetn_counter <= 0;
     else if (!resetn) resetn_counter <= resetn_counter + 1;
 end
 
+wire self_rst;
+wire resetn = (& resetn_counter) && (~self_rst);
 // -------------------------------
 // Memory/IO Interface
 // Cores <> inter_i
@@ -103,9 +103,9 @@ picorv32 #(
     .mcompose_right_carry_out(mcompose_right_carry[N_CORES*RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
     .mcompose_right_carry_in (mcompose_right_carry[RIGHT_CARRY_BITS-1:0]),
     .mcompose_instr_out      (mcompose_instr),
+    .mcompose_exec_out       (mcompose_exec),
     .mcompose_reg_out        (mcompose_reg),
-    .mcompose_redundant_out  (mcompose_redundant),
-    .mcompose_exec_out       (mcompose_exec)
+    .mcompose_redundant_out  (mcompose_redundant)
 );
 /* verilator lint_on PINMISSING */
 assign mem_write[0] = mem_valid [0] &&  (|mem_wstrb[3: 0]);
@@ -147,9 +147,9 @@ generate
             .mcompose_left_carry_out (mcompose_left_carry[LEFT_CARRY_BITS*core_num + LEFT_CARRY_BITS - 1 -: LEFT_CARRY_BITS]),
             .mcompose_right_carry_out(mcompose_right_carry[RIGHT_CARRY_BITS*(core_num - 1) + RIGHT_CARRY_BITS - 1 -: RIGHT_CARRY_BITS]),
             .mcompose_instr_in       (mcompose_instr),
+            .mcompose_exec_in        (mcompose_exec),
             .mcompose_reg_in         (mcompose_reg),
             .mcompose_redundant_in   (mcompose_redundant),
-            .mcompose_exec_in        (mcompose_exec),
             .mcompose_fault          (fault_in[core_num - 1])
         );
     /* verilator lint_on PINMISSING */
@@ -235,12 +235,12 @@ assign slave_data_rdata[0*32 +: 32] = bram_dout_reg;
 // -------------------------------
 // GPO
 gpo # (
-    .NBIT(4)
+    .NBIT(5)
 ) gpo0 (
     .clk     (clk),
     .resetn  (resetn),
-    .dout    (leds),
-    .din     (slave_data_wdata[ 1 * 32 +: 4] ),
+    .dout    ({self_rst,leds}),
+    .din     (slave_data_wdata[ 1 * 32 +: 5] ),
     .din_val (slave_data_req[1] & slave_data_we[1])
 );
 assign slave_data_rdata[1*32 +: 32] = 32'd0;
@@ -257,58 +257,6 @@ uart #(
     .ready   (tx_ready)
 );
 assign slave_data_rdata[2*32 +: 32] = {31'b0, tx_ready};
-
-/*
-always @(posedge clk) begin
-    if (|mem_la_access) begin
-        sram_read  <= sram_read  | mem_la_read;
-        sram_write <= sram_write | mem_la_write;
-    end
-
-    if (sram_access[mem_la_arb_counter] | mem_la_access[mem_la_arb_counter]) begin
-        mem_addr_low  <= mem_la_addr[ 32*mem_la_arb_counter + MEM_BITS+1 -: MEM_BITS];
-        mem_addr_high <= mem_la_addr[ 32*mem_la_arb_counter + 31 -: 4];
-        sram_wdata    <= mem_la_wdata[32*mem_la_arb_counter + 31 -: 32];
-        sram_wstrb    <= mem_la_wstrb[ 4*mem_la_arb_counter +  3 -: 4];
-    end
-
-    mem_arb_counter <= mem_arb_counter + 1;
-    mem_la_arb_counter <= mem_la_arb_counter + 1;
-    mem_ready <= 0;
-    tx_send   <= 0;
-
-    if (resetn && sram_access[mem_arb_counter] && !mem_ready[mem_arb_counter]) begin
-        (* parallel_case *)
-        case (1)
-            sram_read[mem_arb_counter] && mem_addr_high == 4'h0: begin    //read from SRAM
-                mem_rdata[32*mem_arb_counter + 31 -: 32] <= sram_rdata;
-                mem_ready[mem_arb_counter] <= 1;
-            end
-            sram_write[mem_arb_counter] && mem_addr_high == 4'h0: begin   //write to SRAM
-                mem_ready[mem_arb_counter] <= 1;
-            end
-            sram_write[mem_arb_counter] && mem_addr_high == 4'h1: begin   //write to LEDs
-                if (sram_wstrb[0]) leds[0] <= sram_wdata[0];
-                if (sram_wstrb[1]) leds[1] <= sram_wdata[8];
-                if (sram_wstrb[2]) leds[2] <= sram_wdata[16];
-                if (sram_wstrb[3]) leds[3] <= sram_wdata[24];
-                mem_ready[mem_arb_counter] <= 1;
-            end
-            sram_read[mem_arb_counter] && mem_addr_high == 4'h2: begin    //read from UART
-                mem_rdata[32*mem_arb_counter + 31 -: 32] <= {31'b0, tx_ready};
-                mem_ready[mem_arb_counter] <= 1;
-            end
-            sram_write[mem_arb_counter] && mem_addr_high == 4'h2: begin   //write to  UART
-                tx_data   <= sram_wdata[7:0];
-                tx_send   <= 1;
-                mem_ready[mem_arb_counter] <= 1;
-            end
-        endcase
-        sram_read[mem_arb_counter]  <= 0;
-        sram_write[mem_arb_counter] <= 0;
-    end
-end
-*/
 
 always @(posedge clk) begin
     dbg[2:0] <= mcompose_right_ready;

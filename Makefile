@@ -12,8 +12,9 @@ RTL_DIR = ${REPO_HOME}/rtl
 MEM_SIZE = 32768
 STACK_SIZE = 4096
 RTL = $(wildcard ${RTL_DIR}/*.v)
+SW ?= wide_data
 
-include ${REPO_HOME}/src/Makefile.in
+include ${REPO_HOME}/src/${SW}/Makefile.in
 include ${REPO_HOME}/board/icefun/Makefile.in
 include ${REPO_HOME}/board/arty/Makefile.in
 include ${REPO_HOME}/board/sakura-x/Makefile.in
@@ -29,7 +30,7 @@ arty: $(BUILD_DIR)/arty.bit
 sakura-x: $(sakura-x-bitstream) 
 
 simulate: $(BUILD_DIR)/firmware.mem
-	iverilog -g2005-sv -I $(RTL_DIR) $(RTL) && ./a.out && rm a.out
+	iverilog $(ACT) -g2005-sv -I $(RTL_DIR) $(RTL) && ./a.out && rm a.out
 
 iver = $(BUILD_DIR)/isim
 simlog = $(BUILD_DIR)/simlog

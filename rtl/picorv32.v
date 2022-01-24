@@ -134,22 +134,23 @@ module picorv32 #(
 	input      [ 7:0] mcompose_in,
 	output     [ 1:0] mcompose_mode_out,
 	input      [ 1:0] mcompose_mode_in,
-	output 			  mcompose_right_ready_out,
-	input             mcompose_right_ready_in,
-	output 			  mcompose_left_ready_out,
-	input             mcompose_left_ready_in,
+    output 			  mcompose_right_ready_out,
+    input             mcompose_right_ready_in,
+    output 			  mcompose_left_ready_out,
+    input             mcompose_left_ready_in,
+    output reg [1:0]  mcompose_right_carry_out,
+    input      [1:0]  mcompose_right_carry_in,
+    output reg [4:0]  mcompose_left_carry_out,
+    input      [4:0]  mcompose_left_carry_in,
 	output reg [31:0] mcompose_instr_out,
+    output 			  mcompose_exec_out,
 	input      [31:0] mcompose_instr_in,
+    input             mcompose_exec_in,
+
 	output reg [31:0] mcompose_reg_out,
 	input      [31:0] mcompose_reg_in,
 	output reg [31:0] mcompose_redundant_out,
 	input      [31:0] mcompose_redundant_in,
-	output 			  mcompose_exec_out,
-	input             mcompose_exec_in,
-	output reg [4:0]  mcompose_left_carry_out,
-	input      [4:0]  mcompose_left_carry_in,
-	output reg [1:0]  mcompose_right_carry_out,
-	input      [1:0]  mcompose_right_carry_in,
 	output            mcompose_fault,
 
 `ifdef RISCV_FORMAL
@@ -249,8 +250,8 @@ module picorv32 #(
 	wire       is_composed_ready = is_composed_primary && mcompose_right_ready_in;
 
 	wire       is_widedatapath = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b00)) || (SECONDARY_CORE && (mcompose_mode_in==2'b00)));
-        wire       is_simd         = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b01)) || (SECONDARY_CORE && (mcompose_mode_in==2'b01)));
-        wire       is_redundant    = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b10)) || (SECONDARY_CORE && (mcompose_mode_in==2'b10)));
+    wire       is_simd         = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b01)) || (SECONDARY_CORE && (mcompose_mode_in==2'b01)));
+    wire       is_redundant    = is_composed && ((PRIMARY_CORE && (mcompose_mode==2'b10)) || (SECONDARY_CORE && (mcompose_mode_in==2'b10)));
 
 	wire       is_composed_state;  //set when cpu_state == cpu_state_composed
 	wire       is_fetch_state;     //set when cpu_state == cpu_state_fetch
@@ -835,7 +836,7 @@ module picorv32 #(
 		assign mcompose_left_ready_out = (mcompose_ready && mcompose_left_ready_in && is_composed_state) || (mcompose_in <= HART_ID);
 		assign mcompose_right_ready_out = (mcompose_ready && mcompose_right_ready_in && is_composed_state) || (mcompose_in <= HART_ID);
 		assign mcompose_exec_out = 1'b0;
-		assign mcompose_fault = is_fault_state;
+        assign mcompose_fault = is_redundant && is_fault_state;
 	end
 
 	wire [31:0] instr_source   = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
@@ -1362,6 +1363,7 @@ module picorv32 #(
 		if (cpu_state == cpu_state_shift)  dbg_ascii_state = "shift";
 		if (cpu_state == cpu_state_stmem)  dbg_ascii_state = "stmem";
 		if (cpu_state == cpu_state_ldmem)  dbg_ascii_state = "ldmem";
+        if (cpu_state == cpu_state_composed)  dbg_ascii_state = "composed";
 	end
 	reg set_mem_do_rinst;
 	reg set_mem_do_rdata;
@@ -1571,26 +1573,40 @@ module picorv32 #(
 				end
 			endcase
 		end
+    end
 
-        if (PRIMARY_CORE) begin
-            if (mem_do_rinst && mem_done)                    mcompose_instr_out = mem_rdata_latched;
-            else                                             mcompose_instr_out = mem_rdata_q;
-    
+generate
+    if (PRIMARY_CORE) begin : gen_mcompose_instr_out
+    always @* begin
+        if (mem_do_rinst && mem_done)                    mcompose_instr_out = mem_rdata_latched;
+        else                                             mcompose_instr_out = mem_rdata_q;
+    end
+    end
+endgenerate
+
+    // Redundant mode operations
+    reg redundant_fault_dectected;
+    always @* begin
+        redundant_fault_dectected = 0;
+        if (PRIMARY_CORE) begin 
             if (is_redundant) begin
-                if (cpu_state == cpu_state_fetch)            mcompose_reg_out = reg_pc;
-                else if (instr_rdinstr)                      mcompose_reg_out = count_instr[31:0];
-                else if (instr_rdinstrh)                     mcompose_reg_out = count_instr[63:32];
-                else if (instr_rdcycle)                      mcompose_reg_out = count_cycle[31:0];
-                else if (instr_rdcycleh)                     mcompose_reg_out = count_cycle[63:32];
-                else if (instr_rdmhartid)                    mcompose_reg_out = HART_ID;
-            end
-            else if (instr_wrmcompose || instr_wrmcomposei)  mcompose_reg_out = reg_next_pc;
-            else                                             mcompose_reg_out = reg_op1;
+                if (cpu_state == cpu_state_fetch)                mcompose_reg_out = reg_pc;
+//                else if (instr_rdinstr)                          mcompose_reg_out = count_instr[31:0];
+//                else if (instr_rdinstrh)                         mcompose_reg_out = count_instr[63:32];
+//                else if (instr_rdcycle)                          mcompose_reg_out = count_cycle[31:0];
+//                else if (instr_rdcycleh)                         mcompose_reg_out = count_cycle[63:32];
+                else if (instr_rdmhartid)                       mcompose_reg_out = HART_ID;
+            end// else if (instr_wrmcompose || instr_wrmcomposei) mcompose_reg_out = reg_next_pc;
+            else                                                mcompose_reg_out = reg_op1;  //for broadcasting a 32-bit value, e.g., addr of lw and sw
     
             if (mem_la_write && is_redundant)                mcompose_redundant_out = mem_la_wdata;
             else if (cpuregs_write && is_redundant)          mcompose_redundant_out = cpuregs_wrdata;
             else if (prev_latched_store && is_redundant)     mcompose_redundant_out = cpuregs_prev_wrdata;
             else                                             mcompose_redundant_out = 0;
+        end else begin //detect fault in SECONDARY_COREs
+            if (is_redundant) begin
+                redundant_fault_dectected = (is_redundant && prev_latched_store && ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2)));
+            end
         end
     end
 
@@ -1816,7 +1832,7 @@ module picorv32 #(
 						end
 						if (is_redundant && mcompose_synced_pc && reg_pc != mcompose_reg_in) begin
 							cpu_state <= cpu_state_trap;
-						end else if (is_redundant && prev_latched_store && cpuregs_prev_wrdata != mcompose_redundant_in) begin
+                        end else if (redundant_fault_dectected) begin
 							cpu_state <= cpu_state_trap;
 						end else begin
 							cpu_state <= cpu_state_ld_rs1;
@@ -2262,7 +2278,7 @@ module picorv32 #(
 							trace_valid <= 1;
 							trace_data <= (irq_active ? TRACE_IRQ : 0) | TRACE_ADDR | ((reg_op1 + decoded_imm) & 32'hffffffff);
 						end
-                                                reg_op1 <= decoded_imm + ((is_composed_secondary && (is_widedatapath||is_simd)) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
+                            reg_op1 <= decoded_imm + ((is_composed_secondary && (is_widedatapath||is_simd)) ? ((HART_ID << 2) + mcompose_reg_in) : reg_op1);
 						set_mem_do_wdata = 1;
 					end
 					if (!mem_do_prefetch && mem_done) begin

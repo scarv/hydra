@@ -4,7 +4,7 @@
 
 void output(uint8_t c, int led_num)
 {
-	*(volatile char*)(0x10000000 + led_num) = c;
+	*(volatile char*)(0x10000000) = c<<led_num;
 }
 
 void blink(int led_num)

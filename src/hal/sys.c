@@ -69,6 +69,18 @@ void wait_for_compose() {
     asm volatile ("mv a5, zero");
     asm volatile ("mv a6, zero");
     asm volatile ("mv a7, zero");
+    asm volatile ("mv s0, zero");
+    asm volatile ("mv s1, zero");
+    asm volatile ("mv s2, zero");
+    asm volatile ("mv s3, zero");
+    asm volatile ("mv s4, zero");
+    asm volatile ("mv s5, zero");
+    asm volatile ("mv s6, zero");
+    asm volatile ("mv s7, zero");
+    asm volatile ("mv s8, zero");
+    asm volatile ("mv s9, zero");
+    asm volatile ("mv s10, zero");
+    asm volatile ("mv s11, zero");
     asm volatile ("csrwi 0x7c0, 1");
 }
 

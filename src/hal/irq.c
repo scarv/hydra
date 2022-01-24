@@ -6,10 +6,14 @@
 // means.
 
 #include "irq.h"
-
+static volatile char *gpo = (char*)0x10000000;
 uint32_t *irq(uint32_t *regs, uint32_t irqs)
 {
     print_string("Fault detected!\n");
+    //recovering by redoing faulted instruction
+    //regs[0] -=4;
+    //reset system
+    *gpo = 0x10;
     set_mcompose(0);
 	return regs;
 }
