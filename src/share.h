@@ -26,6 +26,7 @@
 #define MEASURE(stmt) stmt;
 #endif
 int check_result(const void *a, const void *b, int n_bytes);
+
 extern const unsigned int x[NUM_WORDS];
 extern const unsigned int y[NUM_WORDS];
 extern const unsigned int N[NUM_WORDS];

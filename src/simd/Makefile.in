@@ -10,15 +10,9 @@
 
 TOOLCHAIN_PREFIX = $(RISCV)/bin/riscv32-unknown-elf-
 
-SOURCES  = main.c
+SOURCES  = simd/main.c
 SOURCES += hal/*.c hal/*.S
-SOURCES += mp_xor/*.c mp_xor/*.S
-SOURCES += mp_add/*.c mp_add/*.S
-SOURCES += mp_mul/*.c mp_mul/*.S
-SOURCES += mrz_exp/*.c mrz_exp/*.S
-SOURCES += chacha/*.c chacha/*.S
-SOURCES += aes/*.c 
-SOURCES += scarv/mp/limb/*.c scarv/mp/mpn/*.c scarv/mp/mpn/*.S scarv/mp/mpz/*.c scarv/mp/mrz/*.c scarv/mp/mrz/*.S scarv/share/*.c scarv/scarv.c
+SOURCES += simd/chacha/*.c simd/chacha/*.S
 
 TARGET = $(BUILD_DIR)/firmware.mem
 
