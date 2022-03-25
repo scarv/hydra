@@ -1,6 +1,10 @@
 #include "sys.h"
+static volatile char *uart_tx = (char*)UART_BASE;
+static unsigned int  *wdt     = (unsigned int*)WDT_BASE;
 
-static volatile char *uart_tx = (char*)0x20000000;
+void set_wdt(unsigned int cnt) {
+    *wdt = cnt;
+}
 
 void print_char(char c) {
     while (*uart_tx != 1);

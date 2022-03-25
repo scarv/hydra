@@ -120,6 +120,35 @@ irq_vec:
   
 setup_stack:
   /* adjust stack pointer by hart id (STACK_SIZE bytes per hart) */
+  // Zero all of the registers
+//  mv  x1 , x0
+//  mv  x2 , x0
+  mv  x3 , x0
+  mv  x4 , x0
+  mv  x8 , x0
+  mv  x9 , x0
+  mv  x10, x0
+  mv  x11, x0
+  mv  x12, x0
+  mv  x13, x0
+  mv  x14, x0
+  mv  x15, x0
+  mv  x16, x0
+  mv  x17, x0
+  mv  x18, x0
+  mv  x19, x0
+  mv  x20, x0
+  mv  x21, x0
+  mv  x22, x0
+  mv  x23, x0
+  mv  x24, x0
+  mv  x25, x0
+  mv  x26, x0
+  mv  x27, x0
+  mv  x28, x0
+  mv  x29, x0
+  mv  x30, x0
+  mv  x31, x0
   li   t1, 0
   li   t2, STACK_SIZE
   adjust_stack:
@@ -129,7 +158,8 @@ setup_stack:
     j    adjust_stack
   adjust_stack_end:
 
-bnez t0, call_main
+//checking master core to setup interupt mask
+bnez t0, call_main  
 li   t1, 1
 not  t1, t1
 picorv32_maskirq_insn zero, t1

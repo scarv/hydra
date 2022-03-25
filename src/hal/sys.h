@@ -1,3 +1,18 @@
+#ifndef __SYS_H
+#define __SYS_H
+
+/* UART */
+#define UART_BASE	  0x20000000
+/* GPO */
+#define GPO_BASE  	  0x10000000
+/* WDT */
+#define WDT_BASE  	  0x10000004
+/* BRAM */
+#define BRAM_BASE  	  0x00000000
+
+
+void set_wdt(unsigned int x);
+
 void print_char(char c);
 
 void print_string(const char *s);
@@ -140,3 +155,5 @@ void delay_cycles(unsigned int n_cycles);
         : \
         : "i"(addr) ); \
 }
+
+#endif

@@ -6,14 +6,23 @@
 // means.
 
 #include "irq.h"
-static volatile char *gpo = (char*)0x10000000;
+
+static unsigned int *gpo     = (unsigned int*)GPO_BASE;
+
 uint32_t *irq(uint32_t *regs, uint32_t irqs)
 {
-    print_string("Fault detected!\n");
+    if ((irqs & 0x1) == 1) {
+        print_string("Fault detected!\n");
     //recovering by redoing faulted instruction
     //regs[0] -=4;
     //reset system
+    }
+    if ((irqs & 0x2) == 2) {
+        print_string("Watchdog timeout!\n");
+    }
+
     *gpo = 0x10;
     set_mcompose(0);
+
 	return regs;
 }
