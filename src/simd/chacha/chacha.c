@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "chacha.h"
+#include "chacha_openssl.h"
 
 void print_bytes(uint8_t * p, int len){
     print_string(" 0x");
@@ -23,10 +24,10 @@ void test_chacha() {
 
   int len[5] = {64, 128, 256, 512, 1024};
   uint8_t data[4096]={0};
-  uint32_t rand = 1;
+  //uint32_t rand = 1;
   for (int i = 0; i < 4096; i++) {
-    rand *= 101;
-    rand %= 16777213; // random prime
+    //rand *= 101;
+    //rand %= 16777213; // random prime
     //data[i] = (uint8_t)(rand); 
     data[i] =0;
   }
@@ -39,16 +40,24 @@ void test_chacha() {
 
   uint8_t nonce1[16] = {0};
   memcpy(nonce1+4, nonce, 12);
-  
-  int num_bytes = len[1];
-  print_int(num_bytes);
-  print_string("-bytes using chacha20: ");
-  MEASURE( chacha20_ref(ref, data, num_bytes, key, nonce, 0); )
-  print_int(num_bytes);
-  print_string("-bytes using chacha20 in the composed mode: ");
-  MEASURE( chacha20_com(com, data, num_bytes, key, nonce1); )
 
-  if (!check_result(ref, com, num_bytes)) {
+  uint8_t counter[16] = {0};
+  memcpy(counter+4, nonce, 12);
+  
+  int num_bytes;
+  for (int i = 0; i<5; i++) {
+    num_bytes = len[i];
+    print_int(num_bytes);
+    print_string("-bytes using chacha_openssl: ");
+    MEASURE( chacha20_openssl(ref, data, num_bytes, (uint32_t *)key, (uint32_t *)counter); )
+    print_int(num_bytes);
+    print_string("-bytes using chacha20: ");
+    MEASURE( chacha20_ref(ref, data, num_bytes, key, nonce, 0); )
+    print_int(num_bytes);
+    print_string("-bytes using chacha20 in the composed mode: ");
+    MEASURE( chacha20_com(com, data, num_bytes, key, nonce1); )
+
+    if (!check_result(ref, com, num_bytes)) {
         print_string("chacha failed!\n");
         print_string("   data    :");
         print_bytes(data, num_bytes);
@@ -57,4 +66,5 @@ void test_chacha() {
         print_string("\n chacha com:");
         print_bytes(com, num_bytes);
     } 
+  }
 }
