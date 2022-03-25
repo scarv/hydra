@@ -58,9 +58,27 @@ void mrz_init(){
 }
 
 void test_mrz_exp(){
+    print_int(NUM_BITS);
+    print_string("-bit ModExp: ");
 
-    print_string("Computing exponentiation...\n");
+	mrz_init();
+
+    mrz_mul( &ctx, (limb_t*)r, (limb_t*)x, ctx.rho_2);
+//void mrz_exp( const mrz_ctx_t* ctx, mrz_t r, const mrz_t x, const limb_t* y, int l_y ) 
+    MEASURE(mrz_exp(&ctx, (limb_t*)r, (limb_t*)r, (limb_t*)y, NUM_WORDS));
+
+    mrz_mul( &ctx, (limb_t*)r, (limb_t*)r, ctx.rho_0);
+
+    if (!check_result(r, x_exp_y_mod_N, NUM_BYTES)) {
+        print_string("mrz_exp failed!\n");
+    }
+
+    memset(r, 0x55, NUM_BYTES);
+
+
     set_mcompose_mode(MCOMPOSE_MODE_WIDE);
+    print_int(NUM_BITS);
+    print_string("-bit composed ModExp: ");
 	mrz_init();
 
     mrz_mul_com(NUM_WORDS, ctx.N, omega, (limb_t*)r, (limb_t*)x, ctx.rho_2, NUM_CORES);
@@ -70,7 +88,7 @@ void test_mrz_exp(){
     mrz_mul_com(NUM_WORDS, ctx.N, omega, (limb_t*)r, (limb_t*)r, ctx.rho_0, NUM_CORES);
 
     if (!check_result(r, x_exp_y_mod_N, NUM_BYTES)) {
-        print_string("mrz_exp failed!\n");
+        print_string("composed mrz_exp failed!\n");
     }
 }
 

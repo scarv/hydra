@@ -39,6 +39,6 @@ int main()
 		}
     }
 
-    blink(hart_id);
+    //blink(hart_id);
     return 0;
 }

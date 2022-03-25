@@ -31,10 +31,10 @@ mp_add_com:
     csrw  mcompose_reg,  n_cores
 
 
-    slli bytes_per_word, n_cores, 2
     li   carry, 0
     slli n_bytes, n_words, 2
     add  a_addr_end, n_bytes, a_addr
+    slli bytes_per_word, n_cores, 2
 mp_add_comp_loop:
     beq  a_addr, a_addr_end, mp_add_comp_end
     lw   a_value, 0(a_addr)
