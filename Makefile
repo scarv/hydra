@@ -30,14 +30,14 @@ arty: $(BUILD_DIR)/arty.bit
 sakura-x: $(sakura-x-bitstream) 
 
 simulate: $(BUILD_DIR)/firmware.mem
-	iverilog $(ACT) -g2005-sv -I $(RTL_DIR) $(RTL) && ./a.out && rm a.out
+	iverilog -g2012 $(ACT) -I $(RTL_DIR) $(RTL) && ./a.out && rm a.out
 
 iver = $(BUILD_DIR)/isim
 simlog = $(BUILD_DIR)/simlog
 simvcd = $(BUILD_DIR)/simvcd.vcd
 simulate-hwdebug: $(BUILD_DIR)/firmware.mem
 	@touch $(BUILD_DIR)/firmware.mem
-	iverilog -g2012 -I$(RTL_DIR) -o $(iver) -s tb_top $(RTL) 
+	iverilog -g2012 $(ACT) -I$(RTL_DIR) -o $(iver) -s tb_top $(RTL) 
 	vvp  -l $(simlog) $(iver) +WAVES=$(simvcd)
     
 ## ------

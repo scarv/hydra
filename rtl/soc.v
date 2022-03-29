@@ -27,16 +27,25 @@ localparam N_SLAVE = 3;  // SRAM, GPO, UART
 localparam MEM_WORDS = 8192;
 localparam MEM_BITS = $clog2(MEM_WORDS);
 // -------------------------------
-// Reset Generator
-
-reg [7:0] resetn_counter = 0;
-always @(posedge clk) begin
-    if       (!rstn)  resetn_counter <= 0;
-    else if (!resetn) resetn_counter <= resetn_counter + 1;
-end
+// Reset && WDT Generator
 
 wire self_rst;
-wire resetn = (& resetn_counter) && (~self_rst);
+wire resetn;
+wire [31:0] wdt_din;
+wire        wdt_we;
+wire        wdt_to;    //watchdog timeout requests interrupt
+
+wdt #(
+    .NBIT(32)
+) wdt0 (
+    .clk_i ( clk  ),
+    .rstn_i( rstn ),
+    .rst_req_i( self_rst ),
+    .rstn_o   ( resetn   ),
+    .din      ( wdt_din  ),
+    .din_val  ( wdt_we   ),
+    .wd_to    ( wdt_to   )
+);
 // -------------------------------
 // Memory/IO Interface
 // Cores <> inter_i
@@ -87,12 +96,13 @@ picorv32 #(
     .clk            (clk),
     .resetn         (resetn),
     .mem_valid      (mem_valid[ 0  ]),
+    .mem_write      (mem_write[ 0  ]),
     .mem_addr       (mem_addr[ 31:0]),
     .mem_wdata      (mem_wdata[31:0]),
     .mem_wstrb      (mem_wstrb[ 3:0]),
     .mem_rdata      (mem_rdata[31:0]),
     .mem_ready      (mem_ready[ 0  ]),
-   .irq             ({31'b0, irq_in}),
+    .irq            ({30'b0, wdt_to, irq_in}),
     .mcompose_out            (mcompose),
     .mcompose_mode_out       (mcompose_mode),
     .mcompose_right_ready_in (mcompose_right_ready[0]),
@@ -108,7 +118,7 @@ picorv32 #(
     .mcompose_redundant_out  (mcompose_redundant)
 );
 /* verilator lint_on PINMISSING */
-assign mem_write[0] = mem_valid [0] &&  (|mem_wstrb[3: 0]);
+//assign mem_write[0] = mem_valid [0] &&  (|mem_wstrb[3: 0]);
 // Secondary cores
 genvar core_num;
 generate
@@ -131,11 +141,13 @@ generate
             .clk             (clk),
             .resetn          (resetn),
             .mem_valid       (mem_valid[   core_num           ]),
+            .mem_write       (mem_write[   core_num           ]),
             .mem_addr        (mem_addr[ 32*core_num + 31 -: 32]),
             .mem_wdata       (mem_wdata[32*core_num + 31 -: 32]),
             .mem_wstrb       (mem_wstrb[ 4*core_num +  3 -:  4]),
             .mem_ready       (mem_ready[   core_num           ]),
             .mem_rdata       (mem_rdata[32*core_num + 31 -: 32]),
+            .irq             ({32'd0}),
             .mcompose_in             (mcompose),
             .mcompose_mode_in        (mcompose_mode),
             .mcompose_right_ready_in (mcompose_right_ready[core_num]),
@@ -153,7 +165,7 @@ generate
             .mcompose_fault          (fault_in[core_num - 1])
         );
     /* verilator lint_on PINMISSING */
-        assign mem_write[core_num] = mem_valid [core_num] &&  (|mem_wstrb[ 4*core_num +  3 -: 4]);
+    //    assign mem_write[core_num] = mem_valid [core_num] &&  (|mem_wstrb[ 4*core_num +  3 -: 4]);
     end
 endgenerate
 
@@ -234,6 +246,7 @@ assign slave_data_rdata[0*32 +: 32] = bram_dout_reg;
 
 // -------------------------------
 // GPO
+wire gpo_sel;
 gpo # (
     .NBIT(5)
 ) gpo0 (
@@ -241,9 +254,14 @@ gpo # (
     .resetn  (resetn),
     .dout    ({self_rst,leds}),
     .din     (slave_data_wdata[ 1 * 32 +: 5] ),
-    .din_val (slave_data_req[1] & slave_data_we[1])
+    .din_val (slave_data_req[1] & slave_data_we[1] & gpo_sel)
 );
+assign gpo_sel = (slave_data_addr[ 1 * 32 +: 4] == 4'b0000);
+assign wdt_we  = (slave_data_addr[ 1 * 32 +: 4] == 4'b0100) & slave_data_req[1] & slave_data_we[1];
+assign wdt_din = slave_data_wdata[ 1 * 32 +:32];
+
 assign slave_data_rdata[1*32 +: 32] = 32'd0;
+
 // -------------------------------
 // UART Transmitter
 

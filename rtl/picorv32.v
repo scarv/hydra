@@ -100,6 +100,7 @@ module picorv32 #(
 	output reg trap,
 
 	output reg        mem_valid,
+    output            mem_write,
 	output reg        mem_instr,
 	input             mem_ready,
 
@@ -491,6 +492,7 @@ module picorv32 #(
 	wire mem_done = resetn && ((mem_xfer && |mem_state && (mem_do_rinst || mem_do_rdata || mem_do_wdata)) || (&mem_state && mem_do_rinst)) &&
 			(!mem_la_firstword || (~&mem_rdata_latched[1:0] && mem_xfer));
 
+    assign mem_write =   mem_valid && (|mem_wstrb);
 	assign mem_la_write = resetn && !mem_state && mem_do_wdata;
 	assign mem_la_read = resetn && ((!mem_la_use_prefetched_high_word && !mem_state && (mem_do_rinst || mem_do_prefetch || mem_do_rdata)) ||
 			(COMPRESSED_ISA && mem_xfer && (!last_mem_valid ? mem_la_firstword : mem_la_firstword_reg) && !mem_la_secondword && &mem_rdata_latched[1:0]));
@@ -1589,23 +1591,30 @@ endgenerate
     always @* begin
         redundant_fault_dectected = 0;
         if (PRIMARY_CORE) begin 
+			mcompose_reg_out = 0;
+			mcompose_redundant_out = 0;
             if (is_redundant) begin
-                if (cpu_state == cpu_state_fetch)                mcompose_reg_out = reg_pc;
-//                else if (instr_rdinstr)                          mcompose_reg_out = count_instr[31:0];
-//                else if (instr_rdinstrh)                         mcompose_reg_out = count_instr[63:32];
-//                else if (instr_rdcycle)                          mcompose_reg_out = count_cycle[31:0];
-//                else if (instr_rdcycleh)                         mcompose_reg_out = count_cycle[63:32];
-                else if (instr_rdmhartid)                       mcompose_reg_out = HART_ID;
-            end// else if (instr_wrmcompose || instr_wrmcomposei) mcompose_reg_out = reg_next_pc;
-            else                                                mcompose_reg_out = reg_op1;  //for broadcasting a 32-bit value, e.g., addr of lw and sw
+                if (cpu_state == cpu_state_fetch)	mcompose_reg_out = reg_pc;
+//                else if (instr_rdinstr)           mcompose_reg_out = count_instr[31:0];
+//                else if (instr_rdinstrh)          mcompose_reg_out = count_instr[63:32];
+//                else if (instr_rdcycle)           mcompose_reg_out = count_cycle[31:0];
+//                else if (instr_rdcycleh)          mcompose_reg_out = count_cycle[63:32];
+                else if (instr_rdmhartid)           mcompose_reg_out = HART_ID;
+            // else if (instr_wrmcompose || instr_wrmcomposei) mcompose_reg_out = reg_next_pc;
+            //else                                  mcompose_reg_out = reg_op1;  //for broadcasting a 32-bit value, e.g., addr of lw and sw
     
-            if (mem_la_write && is_redundant)                mcompose_redundant_out = mem_la_wdata;
-            else if (cpuregs_write && is_redundant)          mcompose_redundant_out = cpuregs_wrdata;
-            else if (prev_latched_store && is_redundant)     mcompose_redundant_out = cpuregs_prev_wrdata;
-            else                                             mcompose_redundant_out = 0;
+            	if      (mem_la_write)              mcompose_redundant_out = mem_la_wdata;
+            	else if (cpuregs_write)             mcompose_redundant_out = cpuregs_wrdata;
+            	else if (prev_latched_store)        mcompose_redundant_out = cpuregs_prev_wrdata;
+            	else                                mcompose_redundant_out = 0;
+		    end 
         end else begin //detect fault in SECONDARY_COREs
             if (is_redundant) begin
-                redundant_fault_dectected = (is_redundant && prev_latched_store && ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2)));
+				if      (mem_la_write)              redundant_fault_dectected = (mem_la_wdata   != mcompose_redundant_in);
+            	else if (cpuregs_write)             redundant_fault_dectected = (cpuregs_wrdata != mcompose_redundant_in);
+            	else if (prev_latched_store)        redundant_fault_dectected = ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2));
+            	else                                redundant_fault_dectected = 0;
+                //edundant_fault_dectected = (prev_latched_store && ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2)));
             end
         end
     end
@@ -1725,9 +1734,11 @@ endgenerate
 		if (is_composed_secondary && mcompose_exec_in)
 			mcompose_launch_insn <= 1;
 
-		if (resetn && cpuregs_write && latched_rd) begin
+		if (resetn && cpuregs_write) begin
 			cpuregs_prev_wrdata <= cpuregs_wrdata;
 			prev_latched_store <= 1;
+		end else begin
+			prev_latched_store <= 0;
 		end
 		
 		trace_valid <= 0;
@@ -1816,6 +1827,8 @@ endgenerate
 						if (!mcompose_synced_pc) begin
 							mcompose_shadow_pc <= mcompose_reg_in;
 							mcompose_synced_pc <= 1;
+						end else begin
+							mcompose_shadow_pc <= current_pc + 4;
 						end
 
 						mcompose_launch_insn <= 0;
@@ -1825,15 +1838,16 @@ endgenerate
 							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 						end
 
-						mcompose_shadow_pc <= current_pc + 4;
 						if (instr_jal && is_redundant) begin
 							latched_branch <= 1;
 							mcompose_shadow_pc <= current_pc + decoded_imm_j;
 						end
+
 						if (is_redundant && mcompose_synced_pc && reg_pc != mcompose_reg_in) begin
-							cpu_state <= cpu_state_trap;
+							//cpu_state <= cpu_state_trap;
                         end else if (redundant_fault_dectected) begin
 							cpu_state <= cpu_state_trap;
+						end else if (instr_jal) begin
 						end else begin
 							cpu_state <= cpu_state_ld_rs1;
 						end

@@ -15,9 +15,10 @@ SOURCES += hal/*.c hal/*.S
 SOURCES += redundant/aes/*.c 
 
 TARGET = $(BUILD_DIR)/firmware.mem
+MODE ?=UNPROTECTED
 
 GCC_FLAGS= -march=rv32im -mabi='ilp32' -Os -Wall -ffreestanding -nostdlib --std=gnu99 -lgcc -Wl,-Bstatic,-T,$(FIRMWARE_DIR)/hal/firmware.lds,--strip-debug
-GCC_DEFS = -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE)
+GCC_DEFS = -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) -D$(MODE)
 #GCC_DEFS+= -DHW_DEBUG
 
 $(BUILD_DIR)/firmware.elf: $(patsubst %, $(FIRMWARE_DIR)/%, $(SOURCES)) $(FIRMWARE_DIR)/hal/firmware.lds

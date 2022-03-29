@@ -10,6 +10,7 @@
 uint32_t regs_context[NUM_CORES][31];
 
 struct AES_ctx ctx;
+unsigned char aes_buf[16];
 uint32_t  param1[7] = {0,1,2,3,4,5,6};
 uint32_t  param2[7] = {10,11,12,13,14,15,16};
 uint32_t  res[7];
@@ -27,18 +28,24 @@ int check_result(const void *a, const void *b, int n_bytes) {
 void test_aes() {
 
     //print_string("AES key expansion: ");
-    
-    print_string("AES encrypting one block: ");
+#ifdef PROTECTED
+    print_string("AES encrypting is protected: \n");
     print_string("\nEntering redundant mode\n");
     set_mcompose_mode(MCOMPOSE_MODE_REDUNDANT);
     set_mcompose(NUM_CORES);
-    AES_init_ctx(&ctx, aes_key);
-    AES_ECB_encrypt(&ctx, aes_in);
+#else
+    print_string("AES encrypting is not protected: \n");
+#endif
+
+    AES_ECB_encrypt(&ctx, aes_buf);
+
+#ifdef PROTECTED
     set_mcompose(0);
     set_mcompose_mode(MCOMPOSE_MODE_WIDE);
     print_string("Exited redundant mode\n");
+#endif
 
-    if (!check_result(aes_in, aes_out, 16)) {
+    if (!check_result(aes_buf, aes_out, 16)) {
         print_string("AES encryption failed!\n");
     }
     
@@ -71,6 +78,10 @@ int main()
         print_string("Hello from core #0\n");
 
         //test_simple_redundant();
+        AES_init_ctx(&ctx, aes_key);
+        for (int i =0; i<16; i++) { aes_buf[i] = aes_in[i];}
+
+        set_wdt(0xFD00);
         test_aes();
 
 

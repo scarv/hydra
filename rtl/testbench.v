@@ -39,12 +39,13 @@ end
 
 initial begin
     fault_inj = 0;
-    wait(composed_soc.primary_cpu.is_redundant == 1'b1);
+    wait(composed_soc.wdt0.din_val == 1'b1);
     `ifdef FAULT_INJ
+    #9000;
     $display("inject a fault\n");
-    #15;
     fault_inj = 1;
-    force composed_soc.primary_cpu.alu_out = 32'h00000000;
+    //force composed_soc.primary_cpu.alu_out = 32'h00000000;
+    composed_soc.primary_cpu.cpuregs[9] = 0;
     #10;
     fault_inj = 0;
     release composed_soc.primary_cpu.alu_out;
