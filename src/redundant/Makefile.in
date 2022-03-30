@@ -22,16 +22,16 @@ GCC_DEFS = -DMEM_SIZE=$(MEM_SIZE) -DSTACK_SIZE=$(STACK_SIZE) -D$(MODE)
 #GCC_DEFS+= -DHW_DEBUG
 
 $(BUILD_DIR)/firmware.elf: $(patsubst %, $(FIRMWARE_DIR)/%, $(SOURCES)) $(FIRMWARE_DIR)/hal/firmware.lds
-	$(TOOLCHAIN_PREFIX)gcc $(GCC_FLAGS) -Isrc  $(GCC_DEFS) -o $@ $(filter %.c, $^) $(filter %.S, $^) 
+	@$(TOOLCHAIN_PREFIX)gcc $(GCC_FLAGS) -Isrc  $(GCC_DEFS) -o $@ $(filter %.c, $^) $(filter %.S, $^) 
 		
 $(BUILD_DIR)/firmware.bin: $(BUILD_DIR)/firmware.elf
-	$(TOOLCHAIN_PREFIX)objcopy -O binary $< $@
+	@$(TOOLCHAIN_PREFIX)objcopy -O binary $< $@
 
 $(BUILD_DIR)/firmware.asm: $(BUILD_DIR)/firmware.elf
 	@${TOOLCHAIN_PREFIX}objdump --disassemble-all ${<} > ${@}
 
 $(BUILD_DIR)/firmware.mem: $(BUILD_DIR)/firmware.bin $(BUILD_DIR)/firmware.asm
-	od -t x4 -An -w4 -v $< > $@	
+	@od -t x4 -An -w4 -v $< > $@	
 
 .PHONY: firmware
 firmware : $(TARGET)

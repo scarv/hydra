@@ -822,7 +822,7 @@ module picorv32 #(
 	`FORMAL_KEEP reg dbg_rs2val_valid;
 	
 	wire is_uncomposable;
-    assign is_uncomposable = |{is_beq_bne_blt_bge_bltu_bgeu, instr_jalr, instr_jal};
+    assign is_uncomposable = |{is_beq_bne_blt_bge_bltu_bgeu, instr_jalr, instr_jal} ;
     wire instr_any_mul = |{instr_mul, instr_mulh, instr_mulhsu, instr_mulhu};
 
 	if (PRIMARY_CORE) begin
@@ -1421,8 +1421,7 @@ module picorv32 #(
 			alu_shl <= reg_op1 << reg_op2[4:0];
 			alu_shr <= $signed({instr_sra || instr_srai ? reg_op1[31] : 1'b0, reg_op1}) >>> reg_op2[4:0];
 		end
-        end
-        else begin
+    end else begin
 		always @* begin
 
 			if (is_composed_secondary && is_widedatapath)
@@ -1462,9 +1461,9 @@ module picorv32 #(
         end else if (SECONDARY_CORE) begin
                     mcompose_left_carry_out    = mcompose_left_carry_in;
         end
-     end  
+    end  
   
-     always @* begin    
+    always @* begin    
         mcompose_right_carry_out = 0;
         if (is_composed && is_widedatapath) begin
             if (instr_beq || instr_bne || is_sltiu_bltu_sltu) begin
@@ -1484,7 +1483,7 @@ module picorv32 #(
         end
     end
     
- always @* begin
+	always @* begin
         alu_out_0 = 'bx;
         (* parallel_case, full_case *)
         case (1'b1)
@@ -1521,11 +1520,11 @@ module picorv32 #(
                 alu_out = alu_shr;
         endcase
     
-`ifdef RISCV_FORMAL_BLACKBOX_ALU
-        alu_out_0 = $anyseq;
-        alu_out = $anyseq;
-`endif
-    end
+		`ifdef RISCV_FORMAL_BLACKBOX_ALU
+        	alu_out_0 = $anyseq;
+       		alu_out = $anyseq;
+		`endif
+	end
     
     reg clear_prefetched_high_word_q;
     always @(posedge clk) clear_prefetched_high_word_q <= clear_prefetched_high_word;
@@ -1554,7 +1553,7 @@ module picorv32 #(
 			case (1'b1)
 				latched_branch: begin
 					if (is_composed_secondary && is_redundant) begin
-						cpuregs_wrdata = mcompose_reg_in + (latched_compr ? 2 : 4);
+						cpuregs_wrdata = reg_pc + (latched_compr ? 2 : 4);
 						cpuregs_write = 1;
 					end else begin
 					cpuregs_wrdata = reg_pc + (latched_compr ? 2 : 4);
@@ -1587,33 +1586,38 @@ generate
 endgenerate
 
     // Redundant mode operations
-    reg redundant_fault_dectected;
+    reg redundant_fault_detected;
+	reg shadow_pc_fault_detected;
     always @* begin
-        redundant_fault_dectected = 0;
+        redundant_fault_detected = 0;
+		shadow_pc_fault_detected = 0;
         if (PRIMARY_CORE) begin 
 			mcompose_reg_out = 0;
 			mcompose_redundant_out = 0;
             if (is_redundant) begin
-                if (cpu_state == cpu_state_fetch)	mcompose_reg_out = reg_pc;
-//                else if (instr_rdinstr)           mcompose_reg_out = count_instr[31:0];
-//                else if (instr_rdinstrh)          mcompose_reg_out = count_instr[63:32];
-//                else if (instr_rdcycle)           mcompose_reg_out = count_cycle[31:0];
-//                else if (instr_rdcycleh)          mcompose_reg_out = count_cycle[63:32];
-                else if (instr_rdmhartid)           mcompose_reg_out = HART_ID;
-            // else if (instr_wrmcompose || instr_wrmcomposei) mcompose_reg_out = reg_next_pc;
-            //else                                  mcompose_reg_out = reg_op1;  //for broadcasting a 32-bit value, e.g., addr of lw and sw
+                if (cpu_state == cpu_state_fetch)	mcompose_reg_out = reg_next_pc;
     
             	if      (mem_la_write)              mcompose_redundant_out = mem_la_wdata;
             	else if (cpuregs_write)             mcompose_redundant_out = cpuregs_wrdata;
             	else if (prev_latched_store)        mcompose_redundant_out = cpuregs_prev_wrdata;
             	else                                mcompose_redundant_out = 0;
 		    end 
+			//not in redundant mode
+//                else if (instr_rdinstr)           mcompose_reg_out = count_instr[31:0];
+//                else if (instr_rdinstrh)          mcompose_reg_out = count_instr[63:32];
+//                else if (instr_rdcycle)           mcompose_reg_out = count_cycle[31:0];
+//                else if (instr_rdcycleh)          mcompose_reg_out = count_cycle[63:32];			
+			else if (instr_rdmhartid)               mcompose_reg_out = HART_ID;
+			else                                    mcompose_reg_out = reg_op1;  //for broadcasting a 32-bit value, e.g., addr of lw and sw
+
         end else begin //detect fault in SECONDARY_COREs
             if (is_redundant) begin
-				if      (mem_la_write)              redundant_fault_dectected = (mem_la_wdata   != mcompose_redundant_in);
-            	else if (cpuregs_write)             redundant_fault_dectected = (cpuregs_wrdata != mcompose_redundant_in);
-            	else if (prev_latched_store)        redundant_fault_dectected = ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2));
-            	else                                redundant_fault_dectected = 0;
+				if      (mem_la_write)              redundant_fault_detected = (mem_la_wdata   != mcompose_redundant_in);
+            	else if (cpuregs_write)             redundant_fault_detected = (cpuregs_wrdata != mcompose_redundant_in);
+            	else if (prev_latched_store)        redundant_fault_detected = ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2));
+            	else                                redundant_fault_detected = 0;
+
+				if (mcompose_synced_pc) 			shadow_pc_fault_detected = mcompose_shadow_pc != mcompose_reg_in;
                 //edundant_fault_dectected = (prev_latched_store && ((cpuregs_prev_wrdata != mcompose_redundant_in)&&(latched_rd != 'd2)));
             end
         end
@@ -1825,11 +1829,13 @@ endgenerate
 				if (mcompose_right_ready_in && mcompose_left_ready_in) begin
 					if (mcompose_launch_insn) begin
 						if (!mcompose_synced_pc) begin
-							mcompose_shadow_pc <= mcompose_reg_in;
+							mcompose_shadow_pc <= mcompose_reg_in + (compressed_instr ? 2 : 4);
 							mcompose_synced_pc <= 1;
-						end else begin
-							mcompose_shadow_pc <= current_pc + 4;
 						end
+						else if (latched_branch && is_redundant) mcompose_shadow_pc <= (latched_store && latched_stalu) ? alu_out_q : reg_out;	
+						else if (instr_jal      && is_redundant) mcompose_shadow_pc <= current_pc + decoded_imm_j;		
+						else             				 		 mcompose_shadow_pc <= current_pc + (compressed_instr ? 2 : 4);
+						
 
 						mcompose_launch_insn <= 0;
 						`debug($display("-- %-0t", $time);)
@@ -1838,21 +1844,17 @@ endgenerate
 							if (!ENABLE_COUNTERS64) count_instr[63:32] <= 0;
 						end
 
-						if (instr_jal && is_redundant) begin
-							latched_branch <= 1;
-							mcompose_shadow_pc <= current_pc + decoded_imm_j;
-						end
-
-						if (is_redundant && mcompose_synced_pc && reg_pc != mcompose_reg_in) begin
-							//cpu_state <= cpu_state_trap;
-                        end else if (redundant_fault_dectected) begin
+						//check pc is fault and check computation is fautl 
+						if (shadow_pc_fault_detected || redundant_fault_detected) begin
 							cpu_state <= cpu_state_trap;
-						end else if (instr_jal) begin
+               			end else if (instr_jal) begin
+							latched_branch <= 1;
 						end else begin
 							cpu_state <= cpu_state_ld_rs1;
 						end
 					end
-				end
+				end	else if (latched_branch && is_redundant && latched_store && latched_stalu) mcompose_shadow_pc <= alu_out_q;	
+
 			end
 
 			cpu_state_fetch: begin
@@ -2230,13 +2232,11 @@ endgenerate
 					if ((TWO_CYCLE_ALU || TWO_CYCLE_COMPARE) && (alu_wait || alu_wait_2)) begin
 						mem_do_rinst <= mem_do_prefetch && !alu_wait_2;
 						alu_wait <= alu_wait_2;
-					end else
-					if (is_beq_bne_blt_bge_bltu_bgeu) begin
+					end else if (is_beq_bne_blt_bge_bltu_bgeu) begin
 						latched_rd <= 0;
 						latched_store <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
 						latched_branch <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
-						if (mem_done)
-							cpu_state <= cpu_state_fetch_or_composed;
+						if (mem_done) cpu_state <= cpu_state_fetch_or_composed;
 						if (TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0) begin
 							decoder_trigger <= 0;
 							set_mem_do_rinst = 1;
@@ -2247,9 +2247,21 @@ endgenerate
 						latched_stalu <= 1;
 						cpu_state <= cpu_state_fetch_or_composed;
 					end
-				end else begin
+				end 
+				else if (is_composed_secondary && is_redundant) begin //add branch instruction handle in redundant composed mode
+					reg_out <= reg_pc + decoded_imm;
+					if (is_beq_bne_blt_bge_bltu_bgeu) begin
+						latched_rd <= 0;
+						latched_store <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
+						latched_branch <= TWO_CYCLE_COMPARE ? alu_out_0_q : alu_out_0;
+					end else begin
+						latched_branch <= instr_jalr;
+						latched_store <= 1;
+					 	latched_stalu <= 1;
+					end 
 					cpu_state <= cpu_state_composed;
-				end
+				end ////////////
+				else cpu_state <= cpu_state_composed;				
 			end
 
 			cpu_state_shift: begin
