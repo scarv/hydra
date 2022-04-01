@@ -29,12 +29,18 @@ void test_aes() {
 
     //print_string("AES key expansion: ");
 #ifdef PROTECTED
-    print_string("AES encrypting is protected: \n");
+    print_string("Protected AES: \n");
+
+    #ifndef EVAL
     print_string("\nEntering redundant mode\n");
+    #endif
+    outputled(1,1); // marking the aes execution
     set_mcompose_mode(MCOMPOSE_MODE_REDUNDANT);
     set_mcompose(NUM_CORES);
 #else
-    print_string("AES encrypting is not protected: \n");
+    print_string("Unprotected AES: \n");
+    outputled(1,1); // marking the aes execution
+    set_mcompose_mode(MCOMPOSE_MODE_WIDE);
 #endif
 
     AES_ECB_encrypt(&ctx, aes_buf);
@@ -42,12 +48,15 @@ void test_aes() {
 #ifdef PROTECTED
     set_mcompose(0);
     set_mcompose_mode(MCOMPOSE_MODE_WIDE);
+    #ifndef EVAL
     print_string("Exited redundant mode\n");
+    #endif
 #endif
+    outputled(0,1); // marking the aes execution
 
-    if (!check_result(aes_buf, aes_out, 16)) {
-        print_string("AES encryption failed!\n");
-    }
+    if (!check_result(aes_buf, aes_out, 16)) print_string("Failed\n");
+    else                                     print_string("Passed\n");
+
     
 }
 
@@ -75,16 +84,18 @@ int main()
     unsigned int hart_id = get_hart_id();
 
     if (hart_id == 0) {
+        #ifndef EVAL
         print_string("Hello from core #0\n");
-
+        #endif
         //test_simple_redundant();
         AES_init_ctx(&ctx, aes_key);
         for (int i =0; i<16; i++) { aes_buf[i] = aes_in[i];}
 
-        set_wdt(0xFD00);
+        //set_wdt(0xFD00);
+
         test_aes();
 
-
+        outputled(1,0); //set led[0] to complete an evaluation
     } else {
         while(1){
         wait_for_compose(); 
