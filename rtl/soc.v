@@ -243,6 +243,8 @@ always@(negedge clk) begin
     else if (bram_rd_reg)   bram_dout_reg <= memory[bram_addr_reg];
 end
 assign slave_data_rdata[0*32 +: 32] = bram_dout_reg;
+//assign slave_data_rdata[0*32 +: 32] = memory[bram_addr_reg];
+
 
 // -------------------------------
 // GPO

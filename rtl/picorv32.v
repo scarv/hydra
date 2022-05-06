@@ -162,7 +162,6 @@ module picorv32 #(
 	output reg        rvfi_halt,
 	output reg        rvfi_intr,
 	output reg [ 1:0] rvfi_mode,
-	output reg [ 1:0] rvfi_ixl,
 	output reg [ 4:0] rvfi_rs1_addr,
 	output reg [ 4:0] rvfi_rs2_addr,
 	output reg [31:0] rvfi_rs1_rdata,
@@ -177,6 +176,7 @@ module picorv32 #(
 	output reg [31:0] rvfi_mem_rdata,
 	output reg [31:0] rvfi_mem_wdata,
 
+	output reg [ 1:0] rvfi_ixl,
 	output reg [63:0] rvfi_csr_mcycle_rmask,
 	output reg [63:0] rvfi_csr_mcycle_wmask,
 	output reg [63:0] rvfi_csr_mcycle_rdata,
@@ -186,6 +186,7 @@ module picorv32 #(
 	output reg [63:0] rvfi_csr_minstret_wmask,
 	output reg [63:0] rvfi_csr_minstret_rdata,
 	output reg [63:0] rvfi_csr_minstret_wdata,
+	
 `endif
 
 	// Trace Interface
@@ -311,7 +312,7 @@ module picorv32 #(
 	wire [31:0] dbg_reg_x30 = cpuregs[30];
 	wire [31:0] dbg_reg_x31 = cpuregs[31];
 `endif
-
+/*
         wire [31:0] dbg_reg_ra  = cpuregs[1];
         wire [31:0] dbg_reg_sp  = cpuregs[2];
 
@@ -342,7 +343,7 @@ module picorv32 #(
         wire [31:0] dbg_reg_t4 = cpuregs[29];
         wire [31:0] dbg_reg_t5 = cpuregs[30];
         wire [31:0] dbg_reg_t6 = cpuregs[31];
-
+*/
 	// Internal PCPI Cores
 
 	wire        pcpi_mul_wr;
@@ -751,7 +752,7 @@ module picorv32 #(
 					end
 				end
 			endcase
-			if (is_composed_state) begin
+			if (is_composed_state) begin   //composed state
 				mem_state <= 0;
                                 if (mem_do_prefetch || mem_do_rinst) mem_valid <= 0;
 			end
@@ -772,6 +773,8 @@ module picorv32 #(
 	reg instr_getq, instr_setq, instr_retirq, instr_maskirq, instr_waitirq, instr_timer;
 	reg instr_mul, instr_mulh, instr_mulhsu, instr_mulhu;
 	wire instr_trap;
+
+	//define composition supporting instructions
 	reg instr_rdmcompose, instr_wrmcompose, instr_wrmcomposei, instr_rdmcompose_mode, instr_wrmcompose_mode, instr_wrmcompose_modei;
 
 
@@ -810,17 +813,8 @@ module picorv32 #(
 	wire is_rdcycle_rdcycleh_rdinstr_rdinstrh;
 	assign is_rdcycle_rdcycleh_rdinstr_rdinstrh = |{instr_rdcycle, instr_rdcycleh, instr_rdinstr, instr_rdinstrh};
 
-	reg [255:0] new_ascii_instr;
-	`FORMAL_KEEP reg [63:0] dbg_ascii_instr;
-	`FORMAL_KEEP reg [31:0] dbg_insn_imm;
-	`FORMAL_KEEP reg [4:0] dbg_insn_rs1;
-	`FORMAL_KEEP reg [4:0] dbg_insn_rs2;
-	`FORMAL_KEEP reg [4:0] dbg_insn_rd;
-	`FORMAL_KEEP reg [31:0] dbg_rs1val;
-	`FORMAL_KEEP reg [31:0] dbg_rs2val;
-	`FORMAL_KEEP reg dbg_rs1val_valid;
-	`FORMAL_KEEP reg dbg_rs2val_valid;
-	
+
+	// logic of composed signals ====================
 	wire is_uncomposable;
     assign is_uncomposable = |{is_beq_bne_blt_bge_bltu_bgeu, instr_jalr, instr_jal} ;
     wire instr_any_mul = |{instr_mul, instr_mulh, instr_mulhsu, instr_mulhu};
@@ -843,6 +837,18 @@ module picorv32 #(
 
 	wire [31:0] instr_source   = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_latched;
 	wire [31:0] instr_source_q = (mcompose_ready && SECONDARY_CORE) ? mcompose_instr_in : mem_rdata_q;
+    // ==============================================
+
+	reg [63:0] new_ascii_instr;
+	`FORMAL_KEEP reg [63:0] dbg_ascii_instr;
+	`FORMAL_KEEP reg [31:0] dbg_insn_imm;
+	`FORMAL_KEEP reg [4:0] dbg_insn_rs1;
+	`FORMAL_KEEP reg [4:0] dbg_insn_rs2;
+	`FORMAL_KEEP reg [4:0] dbg_insn_rd;
+	`FORMAL_KEEP reg [31:0] dbg_rs1val;
+	`FORMAL_KEEP reg [31:0] dbg_rs2val;
+	`FORMAL_KEEP reg dbg_rs1val_valid;
+	`FORMAL_KEEP reg dbg_rs2val_valid;
 
 	always @* begin
 		new_ascii_instr = "";
@@ -889,7 +895,7 @@ module picorv32 #(
 		if (instr_or)       new_ascii_instr = "or";
 		if (instr_and)      new_ascii_instr = "and";
 
-		if (instr_rdcycle)  new_ascii_instr = "rdcycle";
+/*		if (instr_rdcycle)  new_ascii_instr = "rdcycle";
 		if (instr_rdmhartid)  new_ascii_instr = "rdmhartid";
 		if (instr_rdmcompose) new_ascii_instr = "rdmcompose";
 		if (instr_wrmcompose) new_ascii_instr = "wrmcompose";
@@ -897,6 +903,7 @@ module picorv32 #(
 		if (instr_rdmcompose_mode) new_ascii_instr = "rdmcompose_mode";
 		if (instr_wrmcompose_mode) new_ascii_instr = "wrmcompose_mode";
 		if (instr_wrmcompose_modei) new_ascii_instr = "wrmcompose_modei";
+*/
 		if (instr_rdcycleh) new_ascii_instr = "rdcycleh";
 		if (instr_rdinstr)  new_ascii_instr = "rdinstr";
 		if (instr_rdinstrh) new_ascii_instr = "rdinstrh";
@@ -1365,7 +1372,7 @@ module picorv32 #(
 		if (cpu_state == cpu_state_shift)  dbg_ascii_state = "shift";
 		if (cpu_state == cpu_state_stmem)  dbg_ascii_state = "stmem";
 		if (cpu_state == cpu_state_ldmem)  dbg_ascii_state = "ldmem";
-        if (cpu_state == cpu_state_composed)  dbg_ascii_state = "composed";
+        //if (cpu_state == cpu_state_composed)  dbg_ascii_state = "composed";
 	end
 	reg set_mem_do_rinst;
 	reg set_mem_do_rdata;

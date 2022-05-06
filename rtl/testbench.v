@@ -54,9 +54,10 @@ reg [31:0] cnt0; //counting execution time of AES => timeout 0x9000
 always@(posedge clk) begin
     if(!rstn)         cnt0 <= 0;
     else if (leds[1]) cnt0 <= cnt0+1;
+    else if (|cnt0  ) cnt0 <= cnt0+1;
 end
 
-wire    timeout = (cnt0 == 32'h00019000);
+wire    timeout = (cnt0 == 32'h0000C000);
 integer rand_inj;
 integer rand_time;
 integer rand_bit;
@@ -80,7 +81,7 @@ initial begin
 
     for (int i = 0; i<`NEXP; i++) begin
         rand_inj  = $urandom % 100;  //specify probability of injecting a fault
-        rand_time = $urandom % 3600; //the duration of the first round of AES
+        rand_time = 900+$urandom % 3600; //the duration of the first round of AES
         rand_bit  = $urandom % 32;
         rand_regindex =$urandom % 7; 
         rand_regfault = $urandom;
@@ -89,7 +90,7 @@ initial begin
         if (rand_inj < fault_prob) begin
             #rand_time;
             `ifdef PC_FAULT_INJ
-            $display("inject a PC fault");
+            $display("inject a PC fault:%d",i);
             fault_inj = 1;
             @(composed_soc.primary_cpu.reg_next_pc)
             force composed_soc.primary_cpu.reg_next_pc = composed_soc.primary_cpu.reg_next_pc + 4;
@@ -97,7 +98,7 @@ initial begin
             fault_inj = 0;
             release composed_soc.primary_cpu.reg_next_pc;
             `elsif REG_FAULT_INJ
-            $display("inject a Register fault");
+            $display("inject a Register fault:%d",i);
             fault_inj = 1;
             @(posedge clk)
             composed_soc.primary_cpu.cpuregs[fault_index] = 0;
@@ -107,8 +108,11 @@ initial begin
             `endif
         end else $display("No fault injection");
         wait(leds[0] || timeout);
-        if (timeout) $display("Broken");
+        if (timeout) begin
+            $display("Broken");
+        end
         rstn=0;
+        $readmemh(`FIRMWARE,  composed_soc.memory);
         @(posedge clk);
         @(posedge clk);
         @(posedge clk);
