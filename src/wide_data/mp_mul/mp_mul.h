@@ -9,5 +9,5 @@ int mp_mul_ref(const void *a, const void *b, void *res, int n_words);
 int mp_mul_com(const void *a, const void *b, void *res, int n_words, int n_cores);
 
 void test_mp_mul();
-
+void eval_mp_mul(int len);
 #endif

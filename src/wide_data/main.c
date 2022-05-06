@@ -10,7 +10,6 @@
 #include "share.h"
 #include "test.h"
 
-//uint32_t regs_context[NUM_CORES][31];
 int check_result(const void *a, const void *b, int n_bytes) {
     char *a_bytes = (char*)a;
     char *b_bytes = (char*)b;
@@ -33,6 +32,11 @@ int main()
         test_mp_mul();
         test_mrz_exp();
 
+        print_string("Performance evaluation:\n");
+
+        eval_mp_add( 32); //run 32-word-wide values (1024-bit numbers)
+        eval_mp_mul( 32); //run 32-word-wide values (1024-bit numbers)
+        eval_mrz_exp(32); //run 32-word-wide values (1024-bit numbers)
     } else {
         while(1){
         wait_for_compose(); 

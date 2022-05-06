@@ -7,6 +7,7 @@ module sakura_x(
 );
 
 wire clk_50M;
+wire locked;
 clk_wiz_0 clk_gen
    (
     // Clock out ports

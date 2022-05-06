@@ -10,5 +10,5 @@ int mp_add_ref(const void *a, const void *b, void *res, int n_words);
 int mp_add_com(const void *a, const void *b, void *res, int n_words, int n_cores);
 
 void test_mp_add();
-
+void eval_mp_add(int len);
 #endif
