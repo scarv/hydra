@@ -26,26 +26,14 @@ localparam M_EXTENSION = 1;
 localparam N_SLAVE = 3;  // SRAM, GPO, UART
 localparam MEM_WORDS = 8192;
 localparam MEM_BITS = $clog2(MEM_WORDS);
-// -------------------------------
-// Reset && WDT Generator
 
+// -------------------------------
+// Reset && WDT Generator signal
 wire self_rst;
 wire resetn;
-wire [31:0] wdt_din;
-wire        wdt_we;
-wire        wdt_to;    //watchdog timeout requests interrupt
+wire wdt_to;    //watchdog timeout requests interrupt
 
-wdt #(
-    .NBIT(32)
-) wdt0 (
-    .clk_i ( clk  ),
-    .rstn_i( rstn ),
-    .rst_req_i( self_rst ),
-    .rstn_o   ( resetn   ),
-    .din      ( wdt_din  ),
-    .din_val  ( wdt_we   ),
-    .wd_to    ( wdt_to   )
-);
+
 // -------------------------------
 // Memory/IO Interface
 // Cores <> inter_i
@@ -247,22 +235,37 @@ assign slave_data_rdata[0*32 +: 32] = bram_dout_reg;
 
 
 // -------------------------------
+// Watch Dog Timer and reset control
+wdt #(
+    .NBIT(32)
+) wdt0 (
+    .clk_i ( clk  ),
+    .rstn_i( rstn ),
+    .rst_req_i( self_rst ),
+    .addr_in  ( slave_data_addr [ 1 * 32 +: 4] ),
+    .wd_din   ( slave_data_wdata[ 1 * 32 +:32] ),
+    .wd_req   ( slave_data_req  [ 1          ] ),
+    .wd_we    ( slave_data_we   [ 1          ] ),
+    .rstn_o   ( resetn   ),
+    .wd_to    ( wdt_to   )
+);
+
+// -------------------------------
 // GPO
 wire gpo_sel;
 gpo # (
     .NBIT(5)
 ) gpo0 (
-    .clk     (clk),
-    .resetn  (resetn),
-    .dout    ({self_rst,leds}),
-    .din     (slave_data_wdata[ 1 * 32 +: 5] ),
-    .din_val (slave_data_req[1] & slave_data_we[1] & gpo_sel)
+    .clk     ( clk    ),
+    .resetn  ( resetn ),
+    .addr_in ( slave_data_addr [ 1 * 32 +: 4] ),
+    .gpo_din ( slave_data_wdata[ 1 * 32 +: 5] ),
+    .gpo_req ( slave_data_req  [ 1          ] ),
+    .gpo_we  ( slave_data_we   [ 1          ] ),
+    .gpo_dout( {self_rst,leds}                )        
 );
-assign gpo_sel = (slave_data_addr[ 1 * 32 +: 4] == 4'b0000);
-assign wdt_we  = (slave_data_addr[ 1 * 32 +: 4] == 4'b0100) & slave_data_req[1] & slave_data_we[1];
-assign wdt_din = slave_data_wdata[ 1 * 32 +:32];
-
 assign slave_data_rdata[1*32 +: 32] = 32'd0;
+
 
 // -------------------------------
 // UART Transmitter
