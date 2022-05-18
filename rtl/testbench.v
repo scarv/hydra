@@ -6,7 +6,7 @@
 `endif
 
 `ifndef FR      //fault rate (%)
-    `define FR 50
+    `define FR 70
 `endif
 
 `ifndef NEXP    //number of experiences
@@ -80,6 +80,8 @@ localparam fault_prob = `FR;
 initial begin
 
     for (int i = 0; i<`NEXP; i++) begin
+        $display("\nTest number %3d :",i);
+
         rand_inj  = $urandom % 100;  //specify probability of injecting a fault
         rand_time = 900+$urandom % 3600; //the duration of the first round of AES
         rand_bit  = $urandom % 32;
@@ -90,15 +92,15 @@ initial begin
         if (rand_inj < fault_prob) begin
             #rand_time;
             `ifdef PC_FAULT_INJ
-            $display("inject a PC fault:%d",i);
+            $display("\tinject a PC fault");
             fault_inj = 1;
             @(composed_soc.primary_cpu.reg_next_pc)
-            composed_soc.primary_cpu.reg_next_pc <= composed_soc.primary_cpu.reg_next_pc + 4;
+            composed_soc.primary_cpu.reg_next_pc = composed_soc.primary_cpu.reg_next_pc + 4;
             @(posedge clk)
             fault_inj = 0;
             //release composed_soc.primary_cpu.reg_next_pc;
             `elsif REG_FAULT_INJ
-            $display("inject a Register fault:%d",i);
+            $display("\tinject a Register fault");
             fault_inj = 1;
             @(posedge clk)
             composed_soc.primary_cpu.cpuregs[fault_index] = 0;
@@ -106,7 +108,7 @@ initial begin
             fault_inj = 0;
             //release composed_soc.primary_cpu.cpuregs[9];
             `endif
-        end else $display("No fault injection");
+        end else $display("\tNo fault injection");
         wait(leds[0] || timeout);
         if (timeout) begin
             $display("Broken");

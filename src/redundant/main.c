@@ -55,9 +55,7 @@ void test_aes() {
     outputled(0,1); // marking the aes execution
 
     if (!check_result(aes_buf, aes_out, 16)) print_string("Failed\n");
-    else                                     print_string("Passed\n");
-
-    
+    else                                     print_string("Passed\n");    
 }
 
 void simple_func (uint32_t *res,uint32_t  *param1, uint32_t *param2,uint32_t len) {
@@ -90,8 +88,6 @@ int main()
         //test_simple_redundant();
         AES_init_ctx(&ctx, aes_key);
         for (int i =0; i<16; i++) { aes_buf[i] = aes_in[i];}
-
-        //set_wdt(0xFD00);
 
         test_aes();
 
