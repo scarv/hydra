@@ -93,10 +93,10 @@ initial begin
             $display("inject a PC fault:%d",i);
             fault_inj = 1;
             @(composed_soc.primary_cpu.reg_next_pc)
-            force composed_soc.primary_cpu.reg_next_pc = composed_soc.primary_cpu.reg_next_pc + 4;
+            composed_soc.primary_cpu.reg_next_pc <= composed_soc.primary_cpu.reg_next_pc + 4;
             @(posedge clk)
             fault_inj = 0;
-            release composed_soc.primary_cpu.reg_next_pc;
+            //release composed_soc.primary_cpu.reg_next_pc;
             `elsif REG_FAULT_INJ
             $display("inject a Register fault:%d",i);
             fault_inj = 1;
