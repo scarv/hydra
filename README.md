@@ -46,16 +46,17 @@ while retaining characteristics which stem from a generic multi-core design.
     export RISCV=/opt/riscv
     export PATH=/opt/iverilog/build/bin:$PATH
     export VIVADO_TOOL_DIR=/opt/Xilinx/Vivado/2018.2
-    source $VIVADO_TOOL_DIR/settings64.sh    ```
+    source $VIVADO_TOOL_DIR/settings64.sh
+    ```
 
 - Run a software, e.g., multi-precision algorithms (in the wide_data mode), or ChaCha20 (in the SIMD mode) on HYDRA to evaluate the performance on a FPGA platform:
 
-  - 
+  - Compile a test case
   ```sh
-  SW=[wide_data/simd] make firmware
+  TESTCASE=[wide_data|simd] make software
   ```
  
-  - Build the system on FPGA using Sakura-x, and generate bitstream
+  - Build the system on FPGA using Sakura-x, and generate bitstream including the testcase compiled binary
 
   ```sh
   make sakura-x
@@ -73,10 +74,10 @@ while retaining characteristics which stem from a generic multi-core design.
   microcom -p /dev/ttyUSB0 -s 9600
   ```
 
-- For software development and debug avoiding FPGA re-implementation process, compile and update firmware for FPGA as belows:
+- For software development and debug avoiding FPGA re-implementation process, compile and update software for FPGA as belows:
 
   ```sh
-  SW=[wide_data/simd] make -B firmware
+  TESTCASE=[wide_data|simd] make -B software
   make bit-update
   make update-program
   ```
@@ -85,17 +86,17 @@ while retaining characteristics which stem from a generic multi-core design.
 
   - Compile and run unprotected AES encryption under the PC-fault injection attack
   ```sh
-  SW=redundant ACT="-DPC_FAULT_INJ" make -B simulate
+  TESTCASE=redundant ACT="-DPC_FAULT_INJ" make -B simulate
   ```
 
   Or compile and run unprotected AES encryption under the data-fault injection attack 
   ```sh
-  SW=redundant ACT="-DREG_FAULT_INJ" make -B simulate
+  TESTCASE=redundant ACT="-DREG_FAULT_INJ" make -B simulate
   ```
 
-  - Compile and run protected AES encryption on the HYDRA, configured with the redundant mode, under the PC/data-fault injection attacks 
+  - Compile and run protected AES encryption on the HYDRA, configured with the redundant mode, under the PC- or data-fault injection attacks 
   ```sh
-  SW=redundant MODE=PROTECTED ACT="-D[PC_FAULT_INJ/REG_FAULT_INJ]" make -B simulate
+  TESTCASE=redundant MODE=PROTECTED ACT="-D[PC_FAULT_INJ|REG_FAULT_INJ]" make -B simulate
   ```
 
 ## References
