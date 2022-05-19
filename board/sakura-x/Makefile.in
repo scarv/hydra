@@ -56,8 +56,8 @@ $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi: $(sakura-x-bitstream)
 	python $(REPO_HOME)/board/sakura-x/script/mmi_gen.py $(VIVADO_BUILD)/$(VIVADO_PROJECT)/search-ramb.info $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi 32 32768 $(part)
 
 bit-update: $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit
-$(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit: $(REPO_HOME)/build/firmware.mem $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi
-	{ echo '@00000000'; cat $(REPO_HOME)/build/firmware.mem;} >$(prog_mem)
+$(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit: $(REPO_HOME)/build/software.mem $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi
+	{ echo '@00000000'; cat $(REPO_HOME)/build/software.mem;} >$(prog_mem)
 	$(UPDMEM) -force -meminfo $(VIVADO_BUILD)/$(VIVADO_PROJECT)/prog.mmi -data $(prog_mem) -bit $(sakura-x-bitstream) -proc dummy -out $@
 
 update-program: $(VIVADO_BUILD)/$(VIVADO_PROJECT)/$(VIVADO_PROJECT).runs/impl_1/system_top_wrapper.new.bit

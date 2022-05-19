@@ -1,10 +1,10 @@
-//`include "picorv32.v"
-//`include "uart.v"
-`ifdef FPGA
-	`define FIRMWARE "firmware.mem"
-`else
-	`define FIRMWARE "build/firmware.mem"
-`endif
+// Copyright (C) 2021 SCARV project <info@scarv.org>
+//
+// Use of this source code is restricted per the MIT license, a copy of which 
+// can be found at https://opensource.org/licenses/MIT (or should be included 
+// as LICENSE.txt within the associated archive or repository).
+
+`define PROG_MEM "software.mem"
 
 module soc #(
     parameter CLK_MHZ = 12
@@ -201,7 +201,10 @@ inter #(
 );
 
 reg [31:0] memory [0:MEM_WORDS-1];
-initial $readmemh(`FIRMWARE, memory);
+
+`ifdef FPGA
+initial $readmemh(`PROG_MEM, memory);
+`endif
 
 reg [MEM_BITS-1:0]  bram_addr_reg;
 reg [31        :0]  bram_din_reg;

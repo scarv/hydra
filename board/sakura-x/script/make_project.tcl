@@ -1,7 +1,7 @@
 # Xilinx Vivado script
 # Version: Vivado 2018.2
 # Function:
-#   Generate a vivado project for the rocketchip SoC on sakura X board
+#   Generate a vivado project for a SoC on sakura X board
 
 set bsp_dir 	 [lindex $argv 0]
 set work_dir 	 [lindex $argv 1]
@@ -36,7 +36,7 @@ foreach item $vfiles {
 }
 add_files -norecurse -fileset [get_filesets sources_1] $files
 add_files -norecurse -fileset [get_filesets sources_1] [file normalize $bsp_dir/board/sakura-x/sakura-x.v]
-add_files -norecurse -fileset [get_filesets sources_1] [file normalize $bsp_dir/build/firmware.mem]
+add_files -norecurse -fileset [get_filesets sources_1] [file normalize $bsp_dir/build/software.mem]
 
 set_property verilog_define [list FPGA Differential_clock_capable_pin] [get_filesets sources_1] 
 

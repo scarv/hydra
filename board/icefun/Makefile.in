@@ -7,7 +7,7 @@
 ## ------------------------------
 ## iceFUN flow: synth/p&r/bitstream
 
-$(BUILD_DIR)/icefun.json: ${BOARD_DIR}/icefun/icefun.v $(RTL_DIR)/*.v $(BUILD_DIR)/firmware.hex
+$(BUILD_DIR)/icefun.json: ${BOARD_DIR}/icefun/icefun.v $(RTL_DIR)/*.v $(BUILD_DIR)/software.mem
 	yosys -v3 -p 'synth_ice40 -top top -json $@'  ${BOARD_DIR}/icefun/icefun.v ${BOARD_DIR}/icefun/led_display.v $(RTL)
 
 $(BUILD_DIR)/icefun.asc: $(BUILD_DIR)/icefun.json ${BOARD_DIR}/icefun/icefun.pcf

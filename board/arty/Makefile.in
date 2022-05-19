@@ -7,7 +7,7 @@
 ## ------------------------------
 ## ARTY flow: synth/pack/place/route/fasm/bitstream
 
-$(BUILD_DIR)/top.eblif: $(RTL_DIR)/*.v $(BUILD_DIR)/firmware.hex ${BOARD_DIR}/arty/arty.xdc
+$(BUILD_DIR)/top.eblif: $(RTL_DIR)/*.v $(BUILD_DIR)/software.mem ${BOARD_DIR}/arty/arty.xdc
 	cd $(BUILD_DIR) && symbiflow_synth -t top -v ${BOARD_DIR}/arty/arty.v -d artix7 -p xc7a35tcsg324-1 -x ${BOARD_DIR}/arty/arty.xdc
 
 $(BUILD_DIR)/top.net: $(BUILD_DIR)/top.eblif

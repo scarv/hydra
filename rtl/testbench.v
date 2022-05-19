@@ -1,9 +1,10 @@
-//`include "soc.v"
-`ifdef FPGA
-	`define FIRMWARE "firmware.mem"
-`else
-	`define FIRMWARE "build/firmware.mem"
-`endif
+// Copyright (C) 2021 SCARV project <info@scarv.org>
+//
+// Use of this source code is restricted per the MIT license, a copy of which 
+// can be found at https://opensource.org/licenses/MIT (or should be included 
+// as LICENSE.txt within the associated archive or repository).
+
+`define PROG_MEM "build/software.mem"
 
 `ifndef FR      //fault rate (%)
     `define FR 70
@@ -25,6 +26,7 @@ always #1 clk = !clk;
 
 initial begin
     rstn =0;
+    $readmemh(`PROG_MEM,  composed_soc.memory);
     #3;
     rstn =1;
 end
@@ -80,7 +82,7 @@ localparam fault_prob = `FR;
 initial begin
 
     for (int i = 0; i<`NEXP; i++) begin
-        $display("\nTest number %3d :",i);
+        $display("\nTB: Test number %3d",i);
 
         rand_inj  = $urandom % 100;  //specify probability of injecting a fault
         rand_time = 900+$urandom % 3600; //the duration of the first round of AES
@@ -92,7 +94,7 @@ initial begin
         if (rand_inj < fault_prob) begin
             #rand_time;
             `ifdef PC_FAULT_INJ
-            $display("\tinject a PC fault");
+            $display("\tTB: Inject a PC fault");
             fault_inj = 1;
             @(composed_soc.primary_cpu.reg_next_pc)
             composed_soc.primary_cpu.reg_next_pc = composed_soc.primary_cpu.reg_next_pc + 4;
@@ -100,7 +102,7 @@ initial begin
             fault_inj = 0;
             //release composed_soc.primary_cpu.reg_next_pc;
             `elsif REG_FAULT_INJ
-            $display("\tinject a Register fault");
+            $display("\tTB: Inject a Register fault");
             fault_inj = 1;
             @(posedge clk)
             composed_soc.primary_cpu.cpuregs[fault_index] = 0;
@@ -108,13 +110,13 @@ initial begin
             fault_inj = 0;
             //release composed_soc.primary_cpu.cpuregs[9];
             `endif
-        end else $display("\tNo fault injection");
+        end else $display("\tTB: No fault injection");
         wait(leds[0] || timeout);
         if (timeout) begin
             $display("Broken");
         end
         rstn=0;
-        $readmemh(`FIRMWARE,  composed_soc.memory);
+        $readmemh(`PROG_MEM,  composed_soc.memory);
         @(posedge clk);
         @(posedge clk);
         @(posedge clk);
