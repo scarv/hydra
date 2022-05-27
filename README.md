@@ -5,11 +5,11 @@ Multi-core processor designs often represent an efficient, flexible solution for
 Based on the premise that multi-core processors are generally viable as an implementation platform for cryptography, 
 this work investigates specific instances dubbed HYDRA which harness the concept of Composable Lightweight Processors to support
 three cryptographically useful composition modes, namely, Redundant, Simd, and Widen data-path.
-So, HYDRA can also operate in the modes specifically designed to address domain-specific challenges relating to efficiency and security.
+So, HYDRA can also operate in the modes specifically designed to address domain-specific challenges relating to efficiency and security while retaining characteristics which stem from a generic multi-core design. The Architecture Diagram of HYDRA is illustrated below:
 
-The Repo. contains the source code of a framework to implement and evaluate the supporting modes in a RISC-V based proof-of-concept 
-while retaining characteristics which stem from a generic multi-core design.
+![Architecture Diagram](docs/architecture.png)
 
+The Repo. contains the source code of a framework to implement the HYDRA system and evaluate its supporting modes.
 
 ## Organisation
 
@@ -99,9 +99,41 @@ while retaining characteristics which stem from a generic multi-core design.
   TESTCASE=redundant MODE=PROTECTED ACT="-D[PC_FAULT_INJ|REG_FAULT_INJ]" make -B simulate
   ```
 
+## Evaluation Results
+
+- Cycle and instruction counts compared across a single core and the HYDRA composed wide data-path mode configured with 2 cores and 4 cores. The multi-precision algorithms with 1024-bit operands are used.
+
+  | 1024-bit Operations   | Metric      | Single Core      |  2-core composed System    |  4-core composed System
+  |  :-- | :-- | --: | --: | --: 
+  |   Addition        | Instructions   </br>  Cycles |      431 </br>      2023 |      228 </br>      1225 |     124 </br>      843 |
+  |   Multiplication  | Instructions   </br>  Cycles |    15822 </br>    179395 |     4083 </br>     72490 |    1091 </br>     32086|
+  |   ModExp          | Instructions   </br>  Cycles | 57395054 </br> 594838395 | 15019653 </br> 238293765 | 4144180 </br> 106391562|
+
+- Comparison of ChaCha20 encryption performance in Single Core, 128-bit vector System and the HYDRA composed SIMD mode configured with 2 cores and 4 cores for different message sizes
+
+  |  Message size  | Metric      | Single Core      |  2-core composed System    |  4-core composed System | 128-bit Vector
+  |  --: | :-- | --: | --: | --: | --:
+  |   64 bytes      | Instructions   </br>  Cycles |      1765  </br>  17603 |   1199 </br>   11905 |   659 </br>   7609 |  607 </br> - |
+  |  256 bytes      | Instructions   </br>  Cycles |      6919  </br>  69524 |   4637 </br>   46435 |  2537 </br>  29659 | 2332 </br> - |
+  | 1024 bytes      | Instructions   </br>  Cycles |     27535  </br> 277208 |  18389 </br>  184555 | 10049 </br> 117859 | 9232 </br> - |
+
+- Results of unprotected and protected AES encryption against control flow and data fault injections. The protected AES encryption is executed in the HYDRA composed redundant mode to detect a fault happened in one composed core. The results reports 100 fault cases where a fault is injected into the program counter (resp. a general purpose register) in a Control flow fault case (resp. Data fault case)
+
+  - Control flow fault case
+
+  | Implementations | Passed | Failed | Broken | Detected 
+  |  --: | :--: | :--: | :--: | :--:
+  | Unprotected AES | 30     | 62     | 8      | -- 
+  | Protected AES   | 12     |  0     | 2      | 87 
+
+  - Data fault case 
+
+  | Implementations | Passed | Failed | Broken | Detected 
+  |  --: | :--: | :--: | :--: | :--: 
+  | Unprotected AES | 42     | 29     | 29     | --
+  | Protected AES   | 46     | 0      | 0      | 54
+
 ## References
-
-
 ## Acknowledgements
 
 This work has been supported in part
