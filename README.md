@@ -9,7 +9,7 @@ So, HYDRA can also operate in the modes specifically designed to address domain-
 
 ![Architecture Diagram](docs/architecture.png)
 
-The Repo. contains the source code of a framework to implement the HYDRA system and evaluate its supporting modes.
+The Repo. contains the source code of a framework to implement the HYDRA system and evaluate its supporting modes. We presented this work in [1].
 
 ## Organisation
 
@@ -134,6 +134,9 @@ The Repo. contains the source code of a framework to implement the HYDRA system 
   | Protected AES   | 46     | 0      | 0      | 54
 
 ## References
+
+[1] ![Ben Marshall, Dan Page, Thinh Pham, Max Whale, HYDRA: multi-core RISC-V with cryptographically interesting modes of operation, Sixth Workshop on Computer Architecture Research with RISC-V (CARRV 2022)](https://carrv.github.io/2022/papers/CARRV2022_paper_7_Marshall.pdf)
+
 ## Acknowledgements
 
 This work has been supported in part
