@@ -11,8 +11,7 @@ So, HYDRA can also operate in the modes specifically designed to address domain-
 
 The Repo. contains the source code of a framework to implement the HYDRA system and evaluate its supporting modes. We presented this work in 
 <a href=https://carrv.github.io/2022/papers/CARRV2022_paper_7_Marshall.pdf>
-[1]
-</a>.
+[1]</a>.
 
 ## Organisation
 
