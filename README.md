@@ -135,7 +135,9 @@ The Repo. contains the source code of a framework to implement the HYDRA system 
 
 ## References
 
-[1] ![Ben Marshall, Dan Page, Thinh Pham, Max Whale, HYDRA: multi-core RISC-V with cryptographically interesting modes of operation, Sixth Workshop on Computer Architecture Research with RISC-V (CARRV 2022)](https://carrv.github.io/2022/papers/CARRV2022_paper_7_Marshall.pdf)
+[1] <a href=https://carrv.github.io/2022/papers/CARRV2022_paper_7_Marshall.pdf>
+Ben Marshall, Dan Page, Thinh Pham, Max Whale, HYDRA: multi-core RISC-V with cryptographically interesting modes of operation, Sixth Workshop on Computer Architecture Research with RISC-V (CARRV 2022).
+    </a>
 
 ## Acknowledgements
 
